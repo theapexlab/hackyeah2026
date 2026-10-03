@@ -71,7 +71,9 @@ Configure the world in the left panel (phones, routers, gateways, radio ranges, 
 walk) and press **Generate**. **Reset** rebuilds the same seed, so a rehearsed run replays
 exactly. Click any device, or the Authority badge, to inspect its inbox, store-and-forward
 buffer and log, and to act from it (send a request, accept one, check in, declare a level,
-broadcast an alert, cut power).
+broadcast an alert, cut power). Drag a phone to move it (routers and gateways stay put): carry
+one holding stored messages (amber badge) across an island gap and the store-and-forward flush
+bridges the islands. A lime badge on a phone counts the requests it currently sees as open.
 
 | Key | Event |
 |---|---|

@@ -24,6 +24,22 @@ export function screenToWorld(t: Transform, sx: number, sy: number): Point {
   return { x: (sx - t.x) / t.k, y: (sy - t.y) / t.k };
 }
 
+/**
+ * Where a dragged point ends up: its world origin plus the pointer's screen travel converted
+ * to world units at view scale k, kept inside the world rectangle.
+ */
+export function dragTarget(
+  origin: Point,
+  screenDelta: Point,
+  k: number,
+  world: { readonly width: number; readonly height: number },
+): Point {
+  return {
+    x: clamp(origin.x + screenDelta.x / k, 0, world.width),
+    y: clamp(origin.y + screenDelta.y / k, 0, world.height),
+  };
+}
+
 export function distance(ax: number, ay: number, bx: number, by: number): number {
   const dx = ax - bx;
   const dy = ay - by;

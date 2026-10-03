@@ -4,7 +4,7 @@ import { IconPlugConnectedX } from '@tabler/icons-react';
 import { type MouseEvent, memo } from 'react';
 import { formatKind } from '../../lib/format';
 import { KIND_ICON } from '../../theme/icons';
-import { MODE_LABEL, modeColorVar } from '../../theme/tokens';
+import { MODE_LABEL, modeColorVar, OPEN_REQUEST_COLOR } from '../../theme/tokens';
 import { useUiStore } from '../../ui/store';
 
 export interface NodeGlyphProps {
@@ -17,6 +17,7 @@ export interface NodeGlyphProps {
   readonly hasBackhaul: boolean;
   readonly credentialKind: CredentialKind;
   readonly storeSize: number;
+  readonly openRequests: number;
   readonly selected: boolean;
   readonly hovered: boolean;
 }
@@ -44,6 +45,7 @@ export const NodeGlyph = memo(function NodeGlyph({
   hasBackhaul,
   credentialKind,
   storeSize,
+  openRequests,
   selected,
   hovered,
 }: NodeGlyphProps) {
@@ -57,6 +59,7 @@ export const NodeGlyph = memo(function NodeGlyph({
     formatKind(kind),
     MODE_LABEL[mode],
     credentialKind === 'none' ? 'unregistered' : null,
+    openRequests > 0 ? `${openRequests} open request${openRequests === 1 ? '' : 's'}` : null,
     alive ? null : 'OFF',
   ]
     .filter((part) => part !== null)
@@ -67,8 +70,8 @@ export const NodeGlyph = memo(function NodeGlyph({
       <g
         data-node={id}
         transform={transform}
-        className="pomoc-node"
-        style={{ cursor: 'pointer', opacity: alive ? 1 : 0.35 }}
+        className={kind === 'mobile' ? 'pomoc-node pomoc-node-draggable' : 'pomoc-node'}
+        style={{ opacity: alive ? 1 : 0.35 }}
         onClick={(event) => handleClick(event, id)}
         onDoubleClick={(event) => handleDoubleClick(event, id)}
         onPointerEnter={() => useUiStore.getState().hover(id)}
@@ -107,6 +110,20 @@ export const NodeGlyph = memo(function NodeGlyph({
           color="var(--pomoc-node-icon)"
           style={{ pointerEvents: 'none' }}
         />
+        {openRequests > 0 ? (
+          <g className="pomoc-request-badge" transform={`translate(${-r * 0.85} ${-r * 0.85})`}>
+            <circle r={6.5} style={{ fill: `var(--mantine-color-${OPEN_REQUEST_COLOR}-5)` }} />
+            <text
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={8}
+              fontWeight={700}
+              style={{ fill: 'var(--mantine-color-black)', pointerEvents: 'none' }}
+            >
+              {openRequests}
+            </text>
+          </g>
+        ) : null}
         {storeSize > 0 ? (
           <g className="pomoc-store-badge" transform={`translate(${r * 0.85} ${-r * 0.85})`}>
             <circle r={6.5} style={{ fill: 'var(--mantine-color-yellow-5)' }} />

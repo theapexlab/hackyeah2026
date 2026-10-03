@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clamp,
+  dragTarget,
   fitTransform,
   focusTransform,
   IDENTITY_TRANSFORM,
@@ -26,6 +27,12 @@ describe('geometry', () => {
     expect(wide.k).toBeCloseTo(800 / 700);
     expect(wide.x).toBeCloseTo((2000 - (1000 * 800) / 700) / 2);
     expect(fitTransform(0, 0, 100, 100)).toBe(IDENTITY_TRANSFORM);
+  });
+
+  it('dragTarget converts screen travel at the view scale and clamps to the world', () => {
+    const world = { width: 1000, height: 700 };
+    expect(dragTarget({ x: 100, y: 50 }, { x: 20, y: -10 }, 2, world)).toEqual({ x: 110, y: 45 });
+    expect(dragTarget({ x: 990, y: 5 }, { x: 50, y: -50 }, 1, world)).toEqual({ x: 1000, y: 0 });
   });
 
   it('focusTransform puts the point in the middle of the view', () => {

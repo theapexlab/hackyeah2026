@@ -70,6 +70,9 @@ export const CLASS_COLOR: Readonly<Record<MessageClass, MantineColorName>> = {
   PORTAL_SUMMARY: 'gray',
 };
 
+/** Badge on a node that sees open requests: the lime of the commerce classes. */
+export const OPEN_REQUEST_COLOR: MantineColorName = CLASS_COLOR.LEND;
+
 export const DROP_REASON_LABEL: Readonly<Record<DropReason, string>> = {
   UNVERIFIABLE: 'Unverifiable signature',
   DUPLICATE: 'Duplicate',

@@ -56,7 +56,8 @@ const Legend = memo(function Legend() {
           ))}
         </Group>
         <Text size="xs" c="dimmed">
-          green ring = backhaul · dashed = unregistered · amber badge = stored · dim = off
+          green ring = backhaul · dashed = unregistered · amber badge = stored · lime badge = open
+          request · dim = off · drag a phone to move it
         </Text>
       </Stack>
     </Paper>
