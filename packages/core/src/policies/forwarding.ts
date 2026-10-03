@@ -1,17 +1,20 @@
 /**
  * Forwarding decision logic.
- * Implements diagram 06: the decision tree for accepting/dropping messages.
+ * Implements diagram 06: verify, dedup, relay-cannot-act, class vs mode, TTL / hop / region,
+ * then local delivery. Pure: no state is mutated.
  */
 
 import type { DropReason } from '../domain/events';
-import type { Message, Packet } from '../domain/message';
+import type { Circle, Message, Packet } from '../domain/message';
+import type { Mode } from '../domain/mode';
 import type { Node } from '../domain/node';
 import { arePaymentsAllowed, isClassAllowed, isPriced } from './classes';
-import { isTrusted } from './trust';
+import { isRelayOnlyClass, isTrusted } from './trust';
 
 export interface DecideContext {
-  receiverNode: Node;
-  receiverMode: 'PEACE' | 'L1' | 'L2' | 'L3';
+  receiverNode: Pick<Node, 'id' | 'x' | 'y' | 'seen' | 'credential' | 'hasBackhaul'>;
+  receiverMode: Mode;
+  tick: number;
 }
 
 export interface DecideResult {
@@ -20,94 +23,49 @@ export interface DecideResult {
   deliverLocally: boolean;
 }
 
+const dropped = (dropReason: DropReason): DecideResult => ({
+  drop: true,
+  dropReason,
+  deliverLocally: false,
+});
+
+export function inRegion(region: Circle, x: number, y: number): boolean {
+  return Math.hypot(x - region.centerX, y - region.centerY) <= region.radiusMtres;
+}
+
 export function decide(msg: Message, packet: Packet, ctx: DecideContext): DecideResult {
-  // 1. Verify signature
-  if (!isTrusted(msg.signer)) {
-    return { drop: true, dropReason: 'UNVERIFIABLE', deliverLocally: false };
-  }
+  const node = ctx.receiverNode;
 
-  // 2. Check for duplicate
-  if (ctx.receiverNode.seen.has(msg.id)) {
-    return { drop: true, dropReason: 'DUPLICATE', deliverLocally: false };
+  if (!isTrusted(msg.signer, msg.class)) return dropped('UNVERIFIABLE');
+  if (node.seen.has(msg.id)) return dropped('DUPLICATE');
+  if (msg.signer.credentialKind === 'relay' && !isRelayOnlyClass(msg.class)) {
+    return dropped('RELAY_CANNOT_ACT');
   }
-
-  // 3. Relay cannot originate non-topology messages
-  if (
-    msg.signer.credentialKind === 'relay' &&
-    msg.class !== 'TOPOLOGY' &&
-    msg.class !== 'PORTAL_SUMMARY'
-  ) {
-    return { drop: true, dropReason: 'RELAY_CANNOT_ACT', deliverLocally: false };
-  }
-
-  // 4. Class not allowed in current mode
-  if (!isClassAllowed(msg.class, ctx.receiverMode)) {
-    return { drop: true, dropReason: 'CLASS_NOT_ALLOWED', deliverLocally: false };
-  }
-
-  // 5. Check pricing policy
+  if (!isClassAllowed(msg.class, ctx.receiverMode)) return dropped('CLASS_NOT_ALLOWED');
   if (isPriced(msg.payload) && !arePaymentsAllowed(ctx.receiverMode)) {
-    return { drop: true, dropReason: 'PRICED_IN_EMERGENCY', deliverLocally: false };
+    return dropped('PRICED_IN_EMERGENCY');
   }
+  if (ctx.tick - msg.createdTick > msg.ttlTicks) return dropped('TTL_EXPIRED');
+  if (packet.hop > msg.hopLimit) return dropped('HOP_LIMIT');
 
-  // 6. Check TTL
-  if (packet.hop > msg.ttlTicks) {
-    return { drop: true, dropReason: 'TTL_EXPIRED', deliverLocally: false };
+  const insideRegion = !msg.region || inRegion(msg.region, node.x, node.y);
+  if (!insideRegion && msg.payload.kind === 'REQUEST') return dropped('OUT_OF_REGION');
+
+  const citizen = node.credential.kind === 'citizen';
+  let deliverLocally: boolean;
+  switch (msg.payload.kind) {
+    case 'REQUEST':
+    case 'CLOSE':
+      deliverLocally = citizen;
+      break;
+    case 'RESPONSE':
+      deliverLocally = node.id === msg.payload.targetId;
+      break;
+    case 'CHECK_IN':
+      deliverLocally = node.hasBackhaul;
+      break;
+    default:
+      deliverLocally = insideRegion; // ALERT / MODE_DECLARATION: always forwarded, delivered in region
   }
-
-  // 7. Check hop limit
-  if (packet.hop > msg.hopLimit) {
-    return { drop: true, dropReason: 'HOP_LIMIT', deliverLocally: false };
-  }
-
-  // 8. Check region constraint (only applies to some message types)
-  if (msg.region && (msg.class === 'MODE_DECLARATION' || msg.class === 'OFFICIAL_ALERT')) {
-    // Regional deliveries are handled below in local delivery determination
-  }
-
-  // Message passes all checks
-  // Determine local delivery based on message type
-  let deliverLocally = false;
-
-  // RESPONSE: deliver locally only if receiver is the target
-  if (msg.payload.kind === 'RESPONSE') {
-    if (ctx.receiverNode.id === msg.payload.targetId) {
-      deliverLocally = true;
-    }
-  }
-
-  // CLOSE: deliver locally only if receiver is the target
-  if (msg.payload.kind === 'CLOSE') {
-    deliverLocally = false; // CLOSE is for transaction state, not delivered locally
-  }
-
-  // Declarations: deliver locally if in region
-  if (msg.class === 'MODE_DECLARATION' || msg.class === 'OFFICIAL_ALERT') {
-    if (msg.region) {
-      const dx = ctx.receiverNode.x - msg.region.centerX;
-      const dy = ctx.receiverNode.y - msg.region.centerY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      deliverLocally = dist <= msg.region.radiusMtres;
-    } else {
-      deliverLocally = true;
-    }
-  }
-
-  // CHECK_IN: deliver locally if node has backhaul
-  if (msg.class === 'CHECK_IN') {
-    if (ctx.receiverNode.hasBackhaul) {
-      deliverLocally = true;
-    }
-  }
-
-  // LIFE_CRITICAL, SAFETY, INFO, etc: deliver locally always
-  if (
-    ['LIFE_CRITICAL', 'SAFETY', 'INFO', 'CHECK_IN', 'LEND', 'BORROW', 'GIVE', 'SELL'].includes(
-      msg.class,
-    )
-  ) {
-    deliverLocally = true;
-  }
-
   return { drop: false, deliverLocally };
 }

@@ -55,6 +55,7 @@ export type {
   NodeView,
 } from './domain/node';
 export type {
+  ClassMetricsView,
   EdgeView,
   MetricsView,
   Snapshot,
@@ -69,6 +70,7 @@ export {
   createEngine,
   SimEngine,
   type TickResult,
+  type TimedCommand,
 } from './engine/engine';
 // PRNG
 export { createPrng, type Prng } from './prng';

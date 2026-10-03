@@ -9,7 +9,7 @@ import type { Adjacency } from './adjacency';
 
 export function bfsDistance(
   start: NodeId,
-  nodes: Map<NodeId, Node>,
+  _nodes: Map<NodeId, Node>,
   adj: Adjacency,
   maxHops: number,
 ): Map<NodeId, number> {

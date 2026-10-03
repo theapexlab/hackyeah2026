@@ -31,6 +31,8 @@ export interface EngineConfig {
   };
   seenCap: number;
   recentEventsCap: number;
+  /** Oldest events are discarded beyond this (long demos); the command log is never trimmed. */
+  eventLogCap: number;
   autoConfirm: boolean;
 }
 
@@ -63,5 +65,6 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   },
   seenCap: 10_000,
   recentEventsCap: 500,
+  eventLogCap: 200_000,
   autoConfirm: true,
 };

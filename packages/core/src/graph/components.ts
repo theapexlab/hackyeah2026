@@ -1,6 +1,6 @@
 /**
- * Connected components: find network partitions.
- * Also tracks which component is reachable from the authority.
+ * Connected components over alive nodes.
+ * Also tracks which components touch a node with backhaul (reachable from the Authority).
  */
 
 import type { NodeId } from '../domain/ids';
@@ -8,55 +8,46 @@ import type { Node } from '../domain/node';
 import type { Adjacency } from './adjacency';
 
 export interface ComponentMap {
+  /** Dead nodes are absent (-1 in views). */
   nodeToComponent: Map<NodeId, number>;
   componentCount: number;
-  authorityReachableComponentId: number | null;
+  componentSizes: number[];
+  authorityReachableComponentIds: Set<number>;
 }
 
 export function findComponents(nodes: Map<NodeId, Node>, adj: Adjacency): ComponentMap {
   const nodeToComponent = new Map<NodeId, number>();
-  let componentId = 0;
-  const visited = new Set<NodeId>();
+  const componentSizes: number[] = [];
+  const authorityReachableComponentIds = new Set<number>();
+  const ordered = Array.from(nodes.values()).sort((a, b) =>
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+  );
 
-  // Find all connected components
-  for (const nodeId of nodes.keys()) {
-    if (visited.has(nodeId)) continue;
+  for (const start of ordered) {
+    if (!start.alive || nodeToComponent.has(start.id)) continue;
 
-    // BFS to find component
-    const queue = [nodeId];
-    visited.add(nodeId);
-    const component: NodeId[] = [];
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      component.push(current);
-      nodeToComponent.set(current, componentId);
-
-      const neighbours = adj.neighbours.get(current);
-      if (neighbours) {
-        for (const nbr of neighbours) {
-          if (!visited.has(nbr)) {
-            visited.add(nbr);
-            queue.push(nbr);
-          }
+    const componentId = componentSizes.length;
+    const queue: NodeId[] = [start.id];
+    nodeToComponent.set(start.id, componentId);
+    let size = 0;
+    for (let head = 0; head < queue.length; head++) {
+      const current = queue[head]!;
+      size++;
+      if (nodes.get(current)?.hasBackhaul) authorityReachableComponentIds.add(componentId);
+      for (const nbr of adj.neighbours.get(current) ?? []) {
+        if (!nodeToComponent.has(nbr)) {
+          nodeToComponent.set(nbr, componentId);
+          queue.push(nbr);
         }
       }
     }
-
-    componentId++;
+    componentSizes.push(size);
   }
 
-  // Find which component has a node with backhaul
-  let authorityReachableComponentId: number | null = null;
-  for (const node of nodes.values()) {
-    if (node.alive && node.hasBackhaul) {
-      const comp = nodeToComponent.get(node.id);
-      if (comp !== undefined) {
-        authorityReachableComponentId = comp;
-        break;
-      }
-    }
-  }
-
-  return { nodeToComponent, componentCount: componentId, authorityReachableComponentId };
+  return {
+    nodeToComponent,
+    componentCount: componentSizes.length,
+    componentSizes,
+    authorityReachableComponentIds,
+  };
 }

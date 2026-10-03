@@ -3,6 +3,7 @@
  */
 
 import type { MessageId, NodeId } from './ids';
+import type { Circle } from './message';
 
 export type TransactionStatus = 'open' | 'accepted' | 'closed';
 
@@ -10,6 +11,7 @@ export interface Transaction {
   requestId: MessageId;
   status: TransactionStatus;
   openedAtTick: number;
+  originId: NodeId;
   acceptedAtTick?: number;
   acceptedBy?: NodeId;
   closedAtTick?: number;
@@ -21,4 +23,5 @@ export interface Declaration {
   issuedAtTick: number;
   untilTick: number;
   forged: boolean;
+  region?: Circle;
 }

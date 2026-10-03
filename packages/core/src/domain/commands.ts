@@ -63,7 +63,12 @@ export type Command =
       from: NodeId;
       class: MessageClass;
       text: string;
+      /** Optional structured payload (takes precedence over `text`). */
+      payload?: { text?: string; category?: string; price?: number };
+      category?: string;
+      price?: number;
       hopLimit?: number;
+      region?: Circle;
       forge?: {
         claimKind: string;
       };

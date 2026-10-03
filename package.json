@@ -6,7 +6,7 @@
     "dev": "pnpm --filter @pomoc/sim dev",
     "build": "pnpm --filter @pomoc/sim build",
     "test": "pnpm --filter @pomoc/core test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm -r typecheck",
     "check": "biome check .",
     "format": "biome format --write ."
   },

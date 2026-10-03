@@ -14,7 +14,7 @@ export function inRange(x1: number, y1: number, x2: number, y2: number, maxDist:
 
 export function quality(dist: number, maxDist: number): 'near' | 'medium' | 'far' {
   const frac = dist / maxDist;
-  if (frac < 0.333) return 'near';
-  if (frac < 0.667) return 'medium';
+  if (frac < 1 / 3) return 'near';
+  if (frac < 2 / 3) return 'medium';
   return 'far';
 }

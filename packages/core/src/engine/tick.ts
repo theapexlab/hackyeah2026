@@ -1,111 +1,163 @@
 /**
  * Per-tick simulation algorithm.
- * Implements the main loop: mobility → liveness → mode → originate → inbox → store → swap → metrics.
+ * mobility -> liveness/adjacency -> mode -> originate -> inbox -> store -> swap -> metrics.
+ * Determinism: nodes iterate in id order; inboxes sort by (priority, packet.seq); the single PRNG
+ * is only drawn from mobility here. One hop per tick: forwards go to `nextInbox`, never `inbox`.
  */
 
-import type { DropReason, SimEvent, TransitEvent } from '../domain/events';
-import type { NodeId } from '../domain/ids';
-import { AUTHORITY_ID } from '../domain/ids';
 import type { Message, Packet } from '../domain/message';
-import { MODE_POLICIES, PRIORITY_RANK } from '../domain/mode';
+import { canOriginate, hopLimitFor, MODE_POLICIES, PRIORITY_RANK } from '../domain/mode';
 import type { Node } from '../domain/node';
-import { buildAdjacency } from '../graph/adjacency';
-import { findComponents } from '../graph/components';
-import { isClassAllowed } from '../policies/classes';
+import { recordDelivery, recordOriginated } from '../metrics/metrics';
+import { arePaymentsAllowed, canOriginateClass, isPriced } from '../policies/classes';
 import { decide } from '../policies/forwarding';
 import { applyDeclaration, evaluateMode } from '../policies/modeMachine';
-import { recordAuthorityUplink } from './authority';
-import type { EngineState } from './state';
-import { updateLiveness } from './state';
-
-export interface TickState {
-  events: SimEvent[];
-  transits: TransitEvent[];
-  metrics: {
-    forwardedCount: number;
-    droppedByReason: Map<DropReason, number>;
-  };
-  authorityReceived: Array<{ msgId: string; tick: number; via: string }>;
-}
+import { isTrusted } from '../policies/trust';
+import { injectPendingAuthority, isUplinkMessage, recordAuthorityUplink } from './authority';
+import {
+  type EngineState,
+  logDrop,
+  markSeen,
+  newSink,
+  refreshTopology,
+  type Sink,
+  TRANSIT_RING_TICKS,
+} from './state';
+import { closeTransaction, handleResponse, openTransaction } from './transactions';
 
 function applyMobility(state: EngineState): void {
-  if (!state.engineConfig.mobility.enabled) return;
-
+  const { enabled, stepMetres } = state.engineConfig.mobility;
+  if (!enabled) return;
+  const { width, height } = state.worldConfig;
   for (const node of state.nodes.values()) {
     if (node.kind !== 'mobile') continue;
-
-    const step = state.engineConfig.mobility.stepMetres;
     const angle = state.prng.float(0, Math.PI * 2);
-    const dist = state.prng.float(0, step);
-
-    const newX = node.x + Math.cos(angle) * dist;
-    const newY = node.y + Math.sin(angle) * dist;
-
-    node.x = Math.max(0, Math.min(state.worldConfig.width, newX));
-    node.y = Math.max(0, Math.min(state.worldConfig.height, newY));
+    const dist = state.prng.float(0, stepMetres);
+    node.x = Math.max(0, Math.min(width, node.x + Math.cos(angle) * dist));
+    node.y = Math.max(0, Math.min(height, node.y + Math.sin(angle) * dist));
   }
-
   state.adjacencyDirty = true;
 }
 
-function updateAdjacency(state: EngineState, tickState: TickState): void {
-  if (state.adjacencyDirty) {
-    state.adjacency = buildAdjacency(state.nodes);
-    state.components = findComponents(state.nodes, state.adjacency);
-    state.adjacencyDirty = false;
-    state.adjacencyVersion++;
-    tickState.events.push({
-      type: 'ADJACENCY',
-      tick: state.tick,
-      version: state.adjacencyVersion,
-    });
-  }
-}
-
-function updateModes(state: EngineState, tickState: TickState): void {
+function updateModes(state: EngineState, sink: Sink): void {
+  const { localModeAfterTicks, wanStableTicks, l3StepDownHoldTicks } = state.engineConfig;
   for (const node of state.nodes.values()) {
     if (!node.alive) continue;
-
-    const transition = evaluateMode(node, {
+    const next = evaluateMode(node, {
       tick: state.tick,
-      localModeAfterTicks: state.engineConfig.localModeAfterTicks,
-      wanStableTicks: state.engineConfig.wanStableTicks,
-      l3StepDownHoldTicks: state.engineConfig.l3StepDownHoldTicks,
+      localModeAfterTicks,
+      wanStableTicks,
+      l3StepDownHoldTicks,
     });
-
-    if (transition) {
-      const oldMode = node.mode;
-      node.mode = transition.newMode;
-      node.modeSource = transition.source;
-
-      tickState.events.push({
+    if (!next) continue;
+    const from = node.mode;
+    node.mode = next.newMode;
+    node.modeSource = next.source;
+    if (from !== next.newMode) {
+      sink.events.push({
         type: 'MODE_CHANGED',
         tick: state.tick,
         nodeId: node.id,
-        from: oldMode,
-        to: transition.newMode,
-        source: transition.source,
+        from,
+        to: next.newMode,
+        source: next.source,
       });
     }
   }
 }
 
-function originateMessages(state: EngineState, tickState: TickState): void {
+function newPacket(state: EngineState, base: Packet, from: Node, routeCursor?: number): Packet {
+  return {
+    msgId: base.msgId,
+    hop: base.hop + 1,
+    path: [...base.path, from.id],
+    lastHop: from.id,
+    seq: state.packetSeq++,
+    ...(routeCursor === undefined ? {} : { routeCursor }),
+  };
+}
+
+type Forwarded = 'sent' | 'stored' | 'blocked';
+
+function forwardOrStore(
+  state: EngineState,
+  sink: Sink,
+  node: Node,
+  msg: Message,
+  packet: Packet,
+): Forwarded {
+  const policy = MODE_POLICIES[node.mode];
+  const limit = Math.min(msg.hopLimit, hopLimitFor(policy, msg.class));
+  if (packet.hop + 1 > limit) {
+    logDrop(state, sink, msg, node.id, 'HOP_LIMIT', packet.hop);
+    return 'blocked';
+  }
+
+  const send = (to: Node['id'], routeCursor?: number) => {
+    const target = state.nodes.get(to);
+    if (!target) return;
+    const copy = newPacket(state, packet, node, routeCursor);
+    target.nextInbox.push(copy);
+    sink.transits.push({
+      tick: state.tick,
+      msgId: msg.id,
+      class: msg.class,
+      from: node.id,
+      to,
+      hop: copy.hop,
+      via: 'hop',
+    });
+  };
+
+  // FR-NET-07: responses go back along the recorded path while it still exists
+  if (msg.payload.kind === 'RESPONSE' && packet.routeCursor !== undefined) {
+    const next = msg.payload.returnPath[packet.routeCursor + 1];
+    if (next !== undefined && node.neighbourIds.includes(next)) {
+      send(next, packet.routeCursor + 1);
+      return 'sent';
+    }
+  }
+
+  const targets = node.neighbourIds.filter((id) => id !== packet.lastHop);
+  if (targets.length === 0) {
+    if (!policy.storeAndForward) {
+      logDrop(state, sink, msg, node.id, 'NO_ROUTE', packet.hop);
+      return 'blocked';
+    }
+    if (!node.store.some((e) => e.msgId === msg.id)) {
+      node.store.push({
+        msgId: msg.id,
+        packet,
+        sentTo: new Set(packet.lastHop ? [packet.lastHop] : []),
+      });
+      sink.events.push({
+        type: 'STORED',
+        tick: state.tick,
+        msgId: msg.id,
+        class: msg.class,
+        at: node.id,
+        hop: packet.hop,
+      });
+    }
+    return 'stored';
+  }
+
+  for (const target of targets) send(target);
+  return 'sent';
+}
+
+function originate(state: EngineState, sink: Sink): void {
   for (const node of state.nodes.values()) {
-    while (node.pendingOriginations.length > 0) {
-      const msg = node.pendingOriginations.shift()!;
-
-      // Record as seen and originated
-      node.seen.add(msg.id);
-      if (node.seen.size > state.engineConfig.seenCap) {
-        const arr = Array.from(node.seen);
-        arr.shift();
-        node.seen = new Set(arr);
+    const pending = node.pendingOriginations;
+    node.pendingOriginations = [];
+    for (const msg of pending) {
+      if (!node.alive) {
+        logDrop(state, sink, msg, node.id, 'NODE_DOWN', 0);
+        continue;
       }
-
-      state.messageRegistry.set(msg.id, msg);
-
-      tickState.events.push({
+      markSeen(state, node, msg.id);
+      recordOriginated(state.metrics, msg.class);
+      sink.events.push({
         type: 'ORIGINATED',
         tick: state.tick,
         msgId: msg.id,
@@ -113,398 +165,197 @@ function originateMessages(state: EngineState, tickState: TickState): void {
         originId: msg.originId,
       });
 
-      // Open transaction for REQUESTs
-      if (msg.payload.kind === 'REQUEST') {
-        const requestId = msg.id;
-        const tx = {
-          requestId,
-          status: 'open' as const,
-          openedAtTick: state.tick,
-        };
-        state.engineConfig.autoConfirm; // use it for something
-        tickState.events.push({
-          type: 'TX_OPENED',
-          tick: state.tick,
-          requestId,
-          from: msg.originId,
-        });
+      const { kind } = msg.payload;
+      const derived = kind === 'RESPONSE' || kind === 'CLOSE';
+      const honestCitizen = msg.signer.valid && node.credential.kind === 'citizen';
 
-        // Create request view for the originator
-        if (node.credential.kind === 'citizen') {
-          node.requestView.set(requestId, { status: 'mine', hop: 0 });
+      // a citizen's own mode may forbid a class it is credentialed for; classes it can never
+      // originate are left to receivers (UNVERIFIABLE)
+      if (!derived && honestCitizen && canOriginate('citizen', msg.class)) {
+        if (!canOriginateClass(msg.class, node.mode)) {
+          logDrop(state, sink, msg, node.id, 'CLASS_NOT_ALLOWED', 0);
+          continue;
+        }
+        if (isPriced(msg.payload) && !arePaymentsAllowed(node.mode)) {
+          logDrop(state, sink, msg, node.id, 'PRICED_IN_EMERGENCY', 0);
+          continue;
         }
       }
 
-      // Forward at hop 0
-      forwardOrStore(
-        state,
-        msg,
-        { msgId: msg.id, hop: 0, path: [], lastHop: null, seq: state.messageSeq++ },
-        node,
-        tickState,
-      );
+      if (kind === 'REQUEST' && isTrusted(msg.signer, msg.class) && honestCitizen) {
+        openTransaction(state, sink, msg.id, node.id);
+        node.requestView.set(msg.id, { status: 'mine', hop: 0 });
+      }
+      if (kind === 'CLOSE') closeTransaction(state, sink, msg.payload.requestId);
+      if (isUplinkMessage(msg)) recordAuthorityUplink(state, sink, node, msg, 0);
+
+      forwardOrStore(state, sink, node, msg, {
+        msgId: msg.id,
+        hop: 0,
+        path: [],
+        lastHop: null,
+        seq: state.packetSeq++,
+        ...(kind === 'RESPONSE' && msg.payload.returnPath.length > 0 ? { routeCursor: -1 } : {}),
+      });
     }
   }
 }
 
-function processInbox(state: EngineState, tickState: TickState): void {
-  for (const node of state.nodes.values()) {
-    // Dead nodes drop all packets
-    if (!node.alive) {
-      for (const packet of node.inbox) {
-        tickState.transits.push({
-          tick: state.tick,
-          msgId: packet.msgId,
-          class: 'INFO', // unknown
-          from: packet.lastHop || node.id,
-          to: node.id,
-          hop: packet.hop,
-          via: 'hop',
-        });
+function deliverLocally(
+  state: EngineState,
+  sink: Sink,
+  node: Node,
+  msg: Message,
+  packet: Packet,
+): void {
+  sink.events.push({
+    type: 'DELIVERED',
+    tick: state.tick,
+    msgId: msg.id,
+    class: msg.class,
+    to: node.id,
+    hop: packet.hop,
+  });
+  recordDelivery(state.metrics, msg.id, msg.class, packet.hop, state.tick - msg.createdTick);
 
-        tickState.events.push({
-          type: 'DROPPED',
-          tick: state.tick,
-          msgId: packet.msgId,
-          class: 'INFO',
-          at: node.id,
-          reason: 'NODE_DOWN',
-          hop: packet.hop,
-        });
+  const payload = msg.payload;
+  switch (payload.kind) {
+    case 'REQUEST':
+      if (!node.requestView.has(msg.id)) {
+        node.requestView.set(msg.id, { status: 'open', hop: packet.hop, path: packet.path });
       }
-      node.inbox = [];
+      break;
+    case 'RESPONSE':
+      handleResponse(state, sink, node, payload.requestId, payload.responderId);
+      break;
+    case 'CLOSE': {
+      const view = node.requestView.get(payload.requestId);
+      if (!view) node.requestView.set(payload.requestId, { status: 'taken', hop: packet.hop });
+      else if (view.status === 'open') view.status = 'taken';
+      break;
+    }
+    case 'MODE_DECLARATION':
+      applyDeclaration(
+        node,
+        payload.level,
+        payload.untilTick,
+        state.tick,
+        msg.id,
+        state.engineConfig.l3StepDownHoldTicks,
+      );
+      break;
+    default:
+      break;
+  }
+}
+
+function processInboxes(state: EngineState, sink: Sink): void {
+  const rank = (p: Packet) => PRIORITY_RANK[state.messageRegistry.get(p.msgId)?.class ?? 'INFO'];
+  for (const node of state.nodes.values()) {
+    const inbox = node.inbox;
+    node.inbox = [];
+
+    if (!node.alive) {
+      for (const packet of inbox) {
+        const msg = state.messageRegistry.get(packet.msgId);
+        if (msg) logDrop(state, sink, msg, node.id, 'NODE_DOWN', packet.hop);
+      }
       continue;
     }
 
-    // Sort inbox by priority, then seq
-    node.inbox.sort((a, b) => {
-      const msgA = state.messageRegistry.get(a.msgId);
-      const msgB = state.messageRegistry.get(b.msgId);
-      const clsA = msgA?.class ?? 'INFO';
-      const clsB = msgB?.class ?? 'INFO';
-      const rankA = PRIORITY_RANK[clsA] ?? 4;
-      const rankB = PRIORITY_RANK[clsB] ?? 4;
+    inbox.sort((a, b) => rank(a) - rank(b) || a.seq - b.seq);
 
-      const rankCmp = rankA - rankB;
-      if (rankCmp !== 0) return rankCmp;
-      return a.seq - b.seq;
-    });
-
-    let forwardedCount = 0;
-    const maxForwards = state.engineConfig.nodeCapacityPerTick;
-
-    for (const packet of node.inbox) {
+    let forwarded = 0;
+    for (const packet of inbox) {
       const msg = state.messageRegistry.get(packet.msgId);
       if (!msg) continue;
 
-      // Add to seen
-      node.seen.add(msg.id);
-      if (node.seen.size > state.engineConfig.seenCap) {
-        const arr = Array.from(node.seen);
-        arr.shift();
-        node.seen = new Set(arr);
-      }
-
-      // Decide whether to keep or drop
-      const decision = decide(msg, packet, {
+      const verdict = decide(msg, packet, {
         receiverNode: node,
         receiverMode: node.mode,
+        tick: state.tick,
       });
-
-      if (decision.drop) {
-        tickState.events.push({
-          type: 'DROPPED',
-          tick: state.tick,
-          msgId: msg.id,
-          class: msg.class,
-          at: node.id,
-          reason: decision.dropReason!,
-          hop: packet.hop,
-        });
-
-        tickState.metrics.droppedByReason.set(
-          decision.dropReason!,
-          (tickState.metrics.droppedByReason.get(decision.dropReason!) ?? 0) + 1,
-        );
-
+      if (verdict.drop) {
+        logDrop(state, sink, msg, node.id, verdict.dropReason!, packet.hop);
         continue;
       }
 
-      // Handle local delivery
-      if (decision.deliverLocally) {
-        tickState.events.push({
-          type: 'DELIVERED',
-          tick: state.tick,
-          msgId: msg.id,
-          class: msg.class,
-          to: node.id,
-          hop: packet.hop,
-        });
+      markSeen(state, node, msg.id);
+      if (verdict.deliverLocally) deliverLocally(state, sink, node, msg, packet);
+      recordAuthorityUplink(state, sink, node, msg, packet.hop);
 
-        // Handle specific message types
-        if (msg.class === 'MODE_DECLARATION' && msg.payload.kind === 'MODE_DECLARATION') {
-          if (msg.payload.level !== 'ALL_CLEAR') {
-            applyDeclaration(node, msg.payload.level, msg.payload.untilTick, state.tick);
-          } else {
-            applyDeclaration(node, 'ALL_CLEAR', msg.payload.untilTick, state.tick);
-          }
-        }
+      // a response that arrived at its target has done its job
+      if (msg.payload.kind === 'RESPONSE' && msg.payload.targetId === node.id) continue;
 
-        if (msg.class === 'CHECK_IN' && node.hasBackhaul) {
-          tickState.authorityReceived.push(recordAuthorityUplink(node.id, msg.id, state.tick));
-          tickState.events.push({
-            type: 'AUTHORITY_RECEIVED',
-            tick: state.tick,
-            msgId: msg.id,
-            via: 'uplink',
-          });
-
-          // Create transit event
-          tickState.transits.push({
-            tick: state.tick,
-            msgId: msg.id,
-            class: msg.class,
-            from: node.id,
-            to: AUTHORITY_ID,
-            hop: packet.hop,
-            via: 'uplink',
-          });
-        }
+      if (forwarded >= state.engineConfig.nodeCapacityPerTick) {
+        logDrop(state, sink, msg, node.id, 'CONGESTION', packet.hop);
+        continue;
       }
-
-      // Forward or store
-      if (forwardedCount < maxForwards) {
-        const res = forwardOrStore(state, msg, packet, node, tickState);
-        if (res) {
-          forwardedCount++;
-        }
-      } else {
-        // Capacity exceeded - drop lower priority messages
-        const cls = msg.class;
-        const rank = PRIORITY_RANK[cls] ?? 4;
-        if (rank > 1) {
-          // Drop lower priority
-          tickState.events.push({
-            type: 'DROPPED',
-            tick: state.tick,
-            msgId: msg.id,
-            class: cls,
-            at: node.id,
-            reason: 'CONGESTION',
-            hop: packet.hop,
-          });
-          tickState.metrics.droppedByReason.set(
-            'CONGESTION',
-            (tickState.metrics.droppedByReason.get('CONGESTION') ?? 0) + 1,
-          );
-        }
-      }
+      if (forwardOrStore(state, sink, node, msg, packet) === 'sent') forwarded++;
     }
-
-    node.inbox = [];
   }
 }
 
-function forwardOrStore(
-  state: EngineState,
-  msg: Message,
-  packet: Packet,
-  node: Node,
-  tickState: TickState,
-): boolean {
-  const policy = MODE_POLICIES[node.mode];
-  const limitByHop = Math.min(msg.hopLimit, policy.hopLimit);
-
-  // Check hop limit
-  if (packet.hop >= limitByHop) {
-    return false;
-  }
-
-  // Get targets (neighbors except last hop)
-  const targets = node.neighbourIds.filter((id) => id !== packet.lastHop);
-
-  if (targets.length === 0) {
-    // No neighbors
-    if (policy.storeAndForward) {
-      // Store the message
-      const storeEntry = node.store.find((e) => e.msgId === msg.id);
-      if (!storeEntry) {
-        node.store.push({
-          msgId: msg.id,
-          packet,
-          sentTo: new Set(),
-        });
-
-        tickState.events.push({
-          type: 'STORED',
-          tick: state.tick,
-          msgId: msg.id,
-          class: msg.class,
-          at: node.id,
-          hop: packet.hop,
-        });
-      }
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  // Forward to neighbors
-  for (const target of targets) {
-    const newSeq = state.messageSeq++;
-    const newPacket: Packet = {
-      msgId: msg.id,
-      hop: packet.hop + 1,
-      path: [...packet.path, node.id],
-      lastHop: node.id,
-      seq: newSeq,
-    };
-
-    const targetNode = state.nodes.get(target);
-    if (targetNode?.alive) {
-      targetNode.nextInbox.push(newPacket);
-
-      tickState.transits.push({
-        tick: state.tick,
-        msgId: msg.id,
-        class: msg.class,
-        from: node.id,
-        to: target,
-        hop: newPacket.hop,
-        via: 'hop',
-      });
-
-      tickState.metrics.forwardedCount++;
-    }
-  }
-
-  return true;
-}
-
-function flushStore(state: EngineState, tickState: TickState): void {
+function flushStores(state: EngineState, sink: Sink): void {
   for (const node of state.nodes.values()) {
-    if (!node.alive) {
-      node.store = [];
-      continue;
-    }
+    if (!node.alive || node.store.length === 0) continue;
 
     const policy = MODE_POLICIES[node.mode];
-
-    // Expire old messages
     node.store = node.store.filter((entry) => {
       const msg = state.messageRegistry.get(entry.msgId);
       if (!msg) return false;
-
-      const age = state.tick - msg.createdTick;
-      if (age > msg.ttlTicks) {
-        tickState.events.push({
-          type: 'DROPPED',
+      if (state.tick - msg.createdTick > msg.ttlTicks) {
+        logDrop(state, sink, msg, node.id, 'TTL_EXPIRED', entry.packet.hop);
+        return false;
+      }
+      if (entry.packet.hop + 1 > Math.min(msg.hopLimit, hopLimitFor(policy, msg.class))) {
+        return true;
+      }
+      for (const to of node.neighbourIds) {
+        if (entry.sentTo.has(to)) continue;
+        entry.sentTo.add(to);
+        const copy = newPacket(state, entry.packet, node);
+        state.nodes.get(to)?.nextInbox.push(copy);
+        sink.transits.push({
           tick: state.tick,
           msgId: msg.id,
           class: msg.class,
-          at: node.id,
-          reason: 'TTL_EXPIRED',
-          hop: entry.packet.hop,
+          from: node.id,
+          to,
+          hop: copy.hop,
+          via: 'store-flush',
         });
-        return false;
+        sink.events.push({
+          type: 'STORE_FLUSHED',
+          tick: state.tick,
+          msgId: msg.id,
+          class: msg.class,
+          from: node.id,
+          to,
+        });
       }
-
       return true;
     });
-
-    // Flush to new neighbors
-    for (const entry of node.store) {
-      const msg = state.messageRegistry.get(entry.msgId);
-      if (!msg) continue;
-
-      const policy = MODE_POLICIES[node.mode];
-      const limitByHop = Math.min(msg.hopLimit, policy.hopLimit);
-
-      if (entry.packet.hop >= limitByHop) {
-        continue;
-      }
-
-      for (const nbr of node.neighbourIds) {
-        if (!entry.sentTo.has(nbr)) {
-          const nbrNode = state.nodes.get(nbr);
-          if (nbrNode?.alive) {
-            const newSeq = state.messageSeq++;
-            const newPacket: Packet = {
-              msgId: msg.id,
-              hop: entry.packet.hop + 1,
-              path: [...entry.packet.path, node.id],
-              lastHop: node.id,
-              seq: newSeq,
-            };
-
-            nbrNode.nextInbox.push(newPacket);
-            entry.sentTo.add(nbr);
-
-            tickState.transits.push({
-              tick: state.tick,
-              msgId: msg.id,
-              class: msg.class,
-              from: node.id,
-              to: nbr,
-              hop: newPacket.hop,
-              via: 'store-flush',
-            });
-
-            tickState.events.push({
-              type: 'STORE_FLUSHED',
-              tick: state.tick,
-              msgId: msg.id,
-              class: msg.class,
-              from: node.id,
-              to: nbr,
-            });
-          }
-        }
-      }
-    }
   }
 }
 
-function swapInboxes(state: EngineState): void {
+export function doTick(state: EngineState): Sink {
+  const sink = newSink();
+
+  applyMobility(state); // 1
+  refreshTopology(state, sink); // 2
+  updateModes(state, sink); // 3
+  injectPendingAuthority(state, sink); // 4
+  originate(state, sink);
+  processInboxes(state, sink); // 5
+  flushStores(state, sink); // 6
   for (const node of state.nodes.values()) {
+    // 7
     node.inbox = node.nextInbox;
     node.nextInbox = [];
   }
-}
 
-export function doTick(state: EngineState): TickState {
-  const tickState: TickState = {
-    events: [],
-    transits: [],
-    metrics: {
-      forwardedCount: 0,
-      droppedByReason: new Map(),
-    },
-    authorityReceived: [],
-  };
-
-  // 1. Mobility
-  applyMobility(state);
-
-  // 2. Liveness and adjacency
-  updateLiveness(state);
-  updateAdjacency(state, tickState);
-
-  // 3. Mode evaluation
-  updateModes(state, tickState);
-
-  // 4. Originate messages
-  originateMessages(state, tickState);
-
-  // 5. Process inbox
-  processInbox(state, tickState);
-
-  // 6. Store management
-  flushStore(state, tickState);
-
-  // 7. Swap inbox buffers
-  swapInboxes(state);
-
-  return tickState;
+  state.transitRing.push({ tick: state.tick, transits: sink.transits });
+  if (state.transitRing.length > TRANSIT_RING_TICKS) state.transitRing.shift();
+  return sink;
 }

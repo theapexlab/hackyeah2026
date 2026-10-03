@@ -3,7 +3,7 @@
  */
 
 import type { Payload } from '../domain/message';
-import type { MessageClass, Mode, ModePolicy } from '../domain/mode';
+import type { MessageClass, Mode } from '../domain/mode';
 import { MODE_POLICIES } from '../domain/mode';
 
 export function isClassAllowed(cls: MessageClass, mode: Mode): boolean {

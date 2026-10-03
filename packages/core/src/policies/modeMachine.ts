@@ -1,6 +1,8 @@
 /**
  * Mode state machine.
  * Implements diagram 03: Peace/L1/L2/L3 transitions with hysteresis and automation.
+ * Local automation reaches L1 at most; L2/L3 only via signed declaration.
+ * Leaving L2/L3 (all-clear or expiry) steps down through L1, never straight to peace.
  */
 
 import type { Mode } from '../domain/mode';
@@ -18,53 +20,13 @@ export interface ModeEvalContext {
   l3StepDownHoldTicks: number;
 }
 
+const isEmergencyLevel = (level: Mode) => level === 'L2' || level === 'L3';
+
 /**
- * Evaluate the next mode for a node based on its current state and context.
- * Rules from diagram 03 and FR-MODE-01..11.
+ * Evaluate a node's mode for this tick. Updates WAN counters and clears an expired declaration
+ * (arming the L1 step-down hold); returns the new (mode, source) or null when nothing changes.
  */
 export function evaluateMode(node: Node, ctx: ModeEvalContext): ModeTransition | null {
-  // 1. Declared mode takes precedence
-  if (node.declared && ctx.tick < node.declared.untilTick) {
-    // Already in declared mode
-    if (node.mode === node.declared.level && node.modeSource === 'declared') {
-      return null; // No change
-    }
-    // Transition to declared mode
-    return {
-      newMode: node.declared.level,
-      source: 'declared',
-    };
-  }
-
-  // 2. Clear expired declaration
-  if (node.declared && ctx.tick >= node.declared.untilTick) {
-    const wasL3 = node.declared.level === 'L3';
-    node.declared = null;
-
-    // If it was L3, we step down through L1
-    if (wasL3) {
-      node.l1HoldUntilTick = ctx.tick + ctx.l3StepDownHoldTicks;
-      return {
-        newMode: 'L1',
-        source: 'stepdown',
-      };
-    }
-
-    // Otherwise fall through to local evaluation
-  }
-
-  // 3. L3 step-down hold
-  if (ctx.tick < node.l1HoldUntilTick) {
-    if (node.mode !== 'L1') {
-      return {
-        newMode: 'L1',
-        source: 'stepdown',
-      };
-    }
-    return null;
-  }
-
-  // 4. Update WAN counters
   if (node.wanUp) {
     node.ticksWithWan++;
     node.ticksWithoutWan = 0;
@@ -73,52 +35,49 @@ export function evaluateMode(node: Node, ctx: ModeEvalContext): ModeTransition |
     node.ticksWithWan = 0;
   }
 
-  // 5. Local mode automation
-  if (node.ticksWithoutWan >= ctx.localModeAfterTicks) {
-    // No WAN for long enough: enter L1
-    if (node.mode !== 'L1') {
-      node.ticksWithoutWan = ctx.localModeAfterTicks; // Clamp
-      return {
-        newMode: 'L1',
-        source: 'local',
-      };
+  if (node.declared && ctx.tick >= node.declared.untilTick) {
+    if (isEmergencyLevel(node.declared.level)) {
+      node.l1HoldUntilTick = ctx.tick + ctx.l3StepDownHoldTicks;
     }
+    node.declared = null;
   }
 
-  // 6. Exit L1 after WAN is stable
-  if (node.mode === 'L1' && node.modeSource === 'local') {
-    if (node.ticksWithWan >= ctx.wanStableTicks) {
-      return {
-        newMode: 'PEACE',
-        source: 'local',
-      };
-    }
-  }
+  const target = nextState(node, ctx);
+  if (target.newMode === node.mode && target.source === node.modeSource) return null;
+  return target;
+}
 
-  // No transition
-  return null;
+function nextState(node: Node, ctx: ModeEvalContext): ModeTransition {
+  if (node.declared) return { newMode: node.declared.level, source: 'declared' };
+  if (ctx.tick < node.l1HoldUntilTick) return { newMode: 'L1', source: 'stepdown' };
+  if (node.ticksWithoutWan >= ctx.localModeAfterTicks) return { newMode: 'L1', source: 'local' };
+  // Hysteresis: once in L1, only a stable WAN window returns to PEACE.
+  if (node.mode === 'L1' && node.ticksWithWan < ctx.wanStableTicks) {
+    return { newMode: 'L1', source: 'local' };
+  }
+  return { newMode: 'PEACE', source: 'local' };
 }
 
 /**
- * Apply a mode declaration from an authority message.
+ * Apply a delivered authority declaration or all-clear. The only path into L2/L3.
+ * The mode itself changes on the next tick's evaluation.
  */
 export function applyDeclaration(
   node: Node,
   level: 'L1' | 'L2' | 'L3' | 'ALL_CLEAR',
   untilTick: number,
   tick: number,
+  declarationId: string,
+  stepDownHoldTicks: number,
 ): void {
   if (level === 'ALL_CLEAR') {
-    node.declared = null;
-    // If we were in L3, step down through L1
-    if (node.mode === 'L3') {
-      node.l1HoldUntilTick = tick + 5; // Standard hold time
+    if (node.declared ? isEmergencyLevel(node.declared.level) : isEmergencyLevel(node.mode)) {
+      // delivered mid-tick: the mode changes next tick, so +1 keeps L1 for exactly the hold
+      node.l1HoldUntilTick = tick + stepDownHoldTicks + 1;
     }
-  } else {
-    node.declared = {
-      level,
-      untilTick,
-      declarationId: `decl-${tick}`,
-    };
+    node.declared = null;
+    return;
   }
+  if (untilTick <= tick) return;
+  node.declared = { level, untilTick, declarationId };
 }

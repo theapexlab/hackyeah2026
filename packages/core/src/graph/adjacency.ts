@@ -1,11 +1,12 @@
 /**
  * Adjacency graph: edges and neighbor lists.
- * Tracks when the graph structure changes so UI can avoid re-renders.
+ * `version` only bumps when the edge set (or an edge's quality bucket) actually changes,
+ * so the snapshot can keep a stable `edges` reference across ticks.
  */
 
 import type { NodeId } from '../domain/ids';
 import type { Node } from '../domain/node';
-import { distance } from './distance';
+import { distance, quality } from './distance';
 
 export interface EdgeView {
   a: NodeId;
@@ -19,57 +20,39 @@ export interface Adjacency {
   version: number;
 }
 
-export function buildAdjacency(nodes: Map<NodeId, Node>): Adjacency {
+const byId = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+
+const sameEdges = (x: EdgeView[], y: EdgeView[]) =>
+  x.length === y.length &&
+  x.every((e, i) => e.a === y[i]!.a && e.b === y[i]!.b && e.quality === y[i]!.quality);
+
+/**
+ * Build adjacency over `nodes` (iterated in id order). When `previous` has an identical edge
+ * set it is returned unchanged (same reference, same version); otherwise version = previous + 1.
+ */
+export function buildAdjacency(nodes: Map<NodeId, Node>, previous?: Adjacency): Adjacency {
+  const sorted = Array.from(nodes.values()).sort((a, b) => byId(a.id, b.id));
   const edges: EdgeView[] = [];
-  const neighbours = new Map<NodeId, NodeId[]>();
+  const neighbours = new Map<NodeId, NodeId[]>(sorted.map((n) => [n.id, []]));
 
-  // Initialize all nodes' neighbor lists
-  for (const node of nodes.values()) {
-    neighbours.set(node.id, []);
-  }
-
-  // Build edges between all pairs of alive nodes
-  const nodeArray = Array.from(nodes.values());
-  for (let i = 0; i < nodeArray.length; i++) {
-    for (let j = i + 1; j < nodeArray.length; j++) {
-      const a = nodeArray[i]!;
-      const b = nodeArray[j]!;
-
-      // Both nodes must be alive
-      if (!a.alive || !b.alive) continue;
-
+  for (let i = 0; i < sorted.length; i++) {
+    const a = sorted[i]!;
+    if (!a.alive) continue;
+    for (let j = i + 1; j < sorted.length; j++) {
+      const b = sorted[j]!;
+      if (!b.alive) continue;
       const dist = distance(a.x, a.y, b.x, b.y);
       const maxRange = Math.min(a.range, b.range);
-
-      // Must be within range
       if (dist > maxRange) continue;
-
-      // Determine quality
-      const frac = dist / maxRange;
-      const qual: 'near' | 'medium' | 'far' =
-        frac < 0.333 ? 'near' : frac < 0.667 ? 'medium' : 'far';
-
-      // Canonical edge: smaller id first
-      const edgeA = a.id < b.id ? a.id : b.id;
-      const edgeB = a.id < b.id ? b.id : a.id;
-      edges.push({ a: edgeA, b: edgeB, quality: qual });
-
-      // Add to neighbor lists (both directions)
+      edges.push({ a: a.id, b: b.id, quality: quality(dist, maxRange) });
       neighbours.get(a.id)!.push(b.id);
       neighbours.get(b.id)!.push(a.id);
     }
   }
 
-  // Sort neighbor lists by id for determinism
-  for (const nbrs of neighbours.values()) {
-    nbrs.sort();
-  }
+  // sorted iteration order already yields sorted edges; neighbour lists need one pass
+  for (const list of neighbours.values()) list.sort(byId);
 
-  // Sort edges for determinism
-  edges.sort((x, y) => {
-    const cmp = x.a.localeCompare(y.a);
-    return cmp !== 0 ? cmp : x.b.localeCompare(y.b);
-  });
-
-  return { edges, neighbours, version: 0 };
+  if (previous && sameEdges(previous.edges, edges)) return previous;
+  return { edges, neighbours, version: (previous?.version ?? 0) + 1 };
 }

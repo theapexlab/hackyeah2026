@@ -49,6 +49,43 @@ flooding with hop limits, TTL and de-duplication, store-and-forward via moving p
 coverage analysis for decision makers. Cryptography is standard and not simulated; the
 simulation is about mesh behaviour.
 
+## Running the simulation
+
+Requires Node 20.19+ and pnpm 10. The repo is a pnpm workspace: `packages/core` (deterministic
+simulation engine, no UI) and `apps/sim` (React + Mantine front end).
+
+```bash
+pnpm install        # install workspace dependencies
+pnpm dev            # start the Vite dev server (http://localhost:5173)
+pnpm test           # vitest suite for packages/core
+pnpm build          # production build of apps/sim into apps/sim/dist (relative base)
+pnpm check          # Biome lint + format check
+pnpm typecheck      # tsc --noEmit in every workspace package (src, tests, configs)
+```
+
+Hotkeys (ignored while typing in an input; `?` opens the in-app list):
+
+| Key | Action |
+| --- | --- |
+| `c` | Cells up / down |
+| `g` | Switch the grid off / on |
+| `1` `2` `3` | Trigger emergency L1 / L2 / L3 (whole area) |
+| `0` | All-clear |
+| `a` | Distribute emergency message (official alert) |
+| `r` | Random request (class drawn from the current mode) |
+| `x` | Act upon requests (nearest eligible node accepts the oldest open request) |
+| `f` | Forged request from an unregistered node (rejection demo) |
+| `space` `.` `+` `-` | Play / pause, step one tick, speed up, slow down |
+| `v` `t` `h` `d` `Esc` | Range circles, topology packets, fit view, dark / light, deselect |
+
+Notes:
+
+- Biome is pinned to exactly `2.4.0`; `2.5.15` crashed the linter ("Linter process terminated
+  abnormally") on this repo. Do not loosen the pin without re-running `pnpm check`.
+- Link computation (`graph/adjacency.ts`) compares every pair of nodes, so it is O(n^2) per
+  rebuild. That is fine up to roughly 2,000 nodes, well above the ~300-node cap of the UI;
+  beyond that it needs a spatial index.
+
 ## Documents
 
 - [Concept](docs/concept.md): vision, actors, trust model, modes, economics.

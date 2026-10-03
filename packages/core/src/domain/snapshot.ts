@@ -5,6 +5,7 @@
 
 import type { TransitEvent } from './events';
 import type { MessageId, NodeId } from './ids';
+import type { Circle } from './message';
 import type { MessageClass, Mode } from './mode';
 import type { MessageView, NodeView } from './node';
 
@@ -14,6 +15,13 @@ export interface EdgeView {
   quality: 'near' | 'medium' | 'far';
 }
 
+export interface ClassMetricsView {
+  originated: number;
+  deliveries: number;
+  uniqueReached: number;
+  dropped: number;
+}
+
 export interface MetricsView {
   reachableFraction: number;
   authorityReachableFraction: number;
@@ -21,6 +29,7 @@ export interface MetricsView {
   storedTotal: number;
   transitsThisTick: number;
   deliveriesByClass: Record<MessageClass, number>;
+  byClass: Record<MessageClass, ClassMetricsView>;
   dropsByReason: Record<string, number>;
   medianHops: number;
   medianLatency: number;
@@ -46,12 +55,15 @@ export interface Snapshot {
   transactions: Array<{
     requestId: MessageId;
     status: 'open' | 'accepted' | 'closed';
+    originId: NodeId;
+    acceptedBy?: NodeId;
   }>;
   declarations: Array<{
     id: string;
     level: Mode;
     untilTick: number;
     forged: boolean;
+    region?: Circle;
   }>;
   authority: {
     received: Array<{

@@ -27,6 +27,7 @@ export interface Node {
   backhaul: BackhaulKind;
   batteryBacked: boolean;
   poweredOverride: boolean | null;
+  participating: boolean;
 
   // derived each tick
   alive: boolean;
@@ -61,6 +62,7 @@ export interface Node {
     {
       status: 'open' | 'taken' | 'mine' | 'accepted-by-me';
       hop: number;
+      path?: NodeId[];
     }
   >;
 
@@ -124,7 +126,11 @@ export interface MessageView {
   class: string;
   originId: NodeId;
   hop: number;
+  /** Finite; `Number.MAX_SAFE_INTEGER` when `unbounded` (Infinity does not survive JSON). */
   hopLimit: number;
+  unbounded: boolean;
   ttlRemaining: number;
+  createdTick: number;
+  ttlTicks: number;
   status?: string;
 }
