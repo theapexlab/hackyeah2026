@@ -90,12 +90,17 @@ describe('class vs mode policy', () => {
     }
   });
 
-  it('hop limits follow the concept table and authority classes are unbounded', () => {
+  it('hop limits follow the concept table, relays cap at maxHopLimit, authority classes are unbounded', () => {
     expect(MODE_POLICIES.PEACE.hopLimit).toBe(3);
     expect(MODE_POLICIES.L1.hopLimit).toBe(10);
     expect(MODE_POLICIES.L2.hopLimit).toBe(15);
     expect(MODE_POLICIES.L3.hopLimit).toBe(6);
-    expect(hopLimitFor(MODE_POLICIES.PEACE, 'BORROW')).toBe(3);
+    // PEACE: default 3, max 6 (FR-NET-06); the other levels relay up to their own hopLimit
+    expect(MODE_POLICIES.PEACE.maxHopLimit).toBe(6);
+    expect(hopLimitFor(MODE_POLICIES.PEACE, 'BORROW')).toBe(6);
+    expect(hopLimitFor(MODE_POLICIES.L1, 'INFO')).toBe(10);
+    expect(hopLimitFor(MODE_POLICIES.L2, 'INFO')).toBe(15);
+    expect(hopLimitFor(MODE_POLICIES.L3, 'LIFE_CRITICAL')).toBe(6);
     expect(hopLimitFor(MODE_POLICIES.L3, 'OFFICIAL_ALERT')).toBe(Number.POSITIVE_INFINITY);
     expect(hopLimitFor(MODE_POLICIES.PEACE, 'MODE_DECLARATION')).toBe(Number.POSITIVE_INFINITY);
   });

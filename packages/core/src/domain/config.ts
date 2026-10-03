@@ -46,6 +46,11 @@ export interface EngineConfig {
   readonly seenCap: number;
   /** Max events kept in Snapshot.recentEvents. */
   readonly recentEventsCap: number;
+  /**
+   * Max events kept in the engine's event log (FIFO, trimmed every tick);
+   * Number.POSITIVE_INFINITY disables the cap.
+   */
+  readonly eventLogCap: number;
   /** When true the requester closes a request on the first accepted response. */
   readonly autoConfirm: boolean;
 }
@@ -57,7 +62,7 @@ export const DEFAULT_WORLD_CONFIG: WorldConfig = {
   mobiles: 40,
   routers: 25,
   gateways: 2,
-  range: { mobile: 60, router: 120, gateway: 150 },
+  range: { mobile: 100, router: 200, gateway: 220 },
   unregisteredFraction: 0.1,
   batteryBackedRouterFraction: 0.1,
   gatewayBackhaul: 'satellite',
@@ -72,6 +77,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   mobility: { enabled: false, stepMetres: 4 },
   seenCap: 10_000,
   recentEventsCap: 500,
+  eventLogCap: 100_000,
   autoConfirm: true,
 };
 

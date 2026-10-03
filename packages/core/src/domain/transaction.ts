@@ -40,4 +40,9 @@ export interface RequestViewEntry {
   readonly status: RequestViewStatus;
   /** Hop distance at which this node first received the request (0 for the requester). */
   readonly hop: number;
+  /**
+   * Nodes the request passed through before reaching this node, origin first (empty for
+   * the requester). A RESPONSE's returnPath is [this node, ...reverse(path)].
+   */
+  readonly path?: readonly NodeId[];
 }

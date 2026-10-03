@@ -1,17 +1,70 @@
-import { Container, Text, Title } from '@mantine/core';
-import { createEngine, DEFAULT_WORLD_CONFIG } from '@pomoc/core';
-
-const engine = createEngine(DEFAULT_WORLD_CONFIG);
+import { AppShell, Divider, ScrollArea } from '@mantine/core';
+import { BottomStrip } from './features/bottom/BottomStrip';
+import { ConfigPanel } from './features/config/ConfigPanel';
+import { EventsPanel } from './features/events/EventsPanel';
+import { ShortcutsModal } from './features/events/ShortcutsModal';
+import { InspectorDrawer } from './features/inspector/InspectorDrawer';
+import { MapView } from './features/map/MapView';
+import { TopBar } from './features/topbar/TopBar';
+import { useAppHotkeys } from './ui/hotkeys';
+import { useUiStore } from './ui/store';
+import { useSimNotifications } from './ui/useSimNotifications';
 
 export function App() {
-  const snapshot = engine.getSnapshot();
+  useAppHotkeys();
+  useSimNotifications();
+  const navOpen = useUiStore((s) => s.navOpen);
+  const hasSelection = useUiStore((s) => s.selectedNodeId !== null);
+
   return (
-    <Container py="xl">
-      <Title order={2}>Pomóc simulation</Title>
-      <Text c="dimmed">
-        engine stub · tick {snapshot.tick} · seed {snapshot.world.seed} · {snapshot.nodes.length}{' '}
-        nodes
-      </Text>
-    </Container>
+    <AppShell
+      header={{ height: 56 }}
+      navbar={{ width: 300, breakpoint: 'sm', collapsed: { desktop: !navOpen, mobile: !navOpen } }}
+      aside={{
+        width: 380,
+        breakpoint: 'sm',
+        collapsed: { desktop: !hasSelection, mobile: !hasSelection },
+      }}
+      footer={{ height: 200 }}
+      padding={0}
+      // Collapse navbar/aside in the same layout pass: MapView's fit-to-world effect then reads
+      // the final container width, and the canvas backing store is resized once, not per frame.
+      transitionDuration={0}
+    >
+      <AppShell.Header>
+        <TopBar />
+      </AppShell.Header>
+
+      <AppShell.Navbar>
+        <AppShell.Section grow component={ScrollArea}>
+          <EventsPanel />
+          <Divider />
+          <ConfigPanel />
+        </AppShell.Section>
+      </AppShell.Navbar>
+
+      <AppShell.Main
+        style={{
+          // Mantine pads Main by the header/footer offsets; with border-box the map band is what is left.
+          boxSizing: 'border-box',
+          height: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <MapView />
+      </AppShell.Main>
+
+      <AppShell.Aside>
+        <InspectorDrawer />
+      </AppShell.Aside>
+
+      <AppShell.Footer>
+        <BottomStrip />
+      </AppShell.Footer>
+
+      <ShortcutsModal />
+    </AppShell>
   );
 }

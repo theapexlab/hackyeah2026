@@ -1,0 +1,84 @@
+.pomoc-map {
+  --pomoc-node-fill: var(--mantine-color-dark-6);
+  --pomoc-node-icon: var(--mantine-color-gray-2);
+  background: #0d1117;
+}
+
+:root[data-mantine-color-scheme="light"] .pomoc-map {
+  --pomoc-node-fill: var(--mantine-color-white);
+  --pomoc-node-icon: var(--mantine-color-dark-6);
+  background: #f3f5f9;
+}
+
+.pomoc-map:active {
+  cursor: grabbing;
+}
+
+.pomoc-node {
+  transition: opacity 300ms ease;
+}
+
+.pomoc-node-selected {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pomoc-ring-pulse 1.4s ease-out infinite;
+}
+
+@keyframes pomoc-ring-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.pomoc-store-badge {
+  animation: pomoc-blink 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pomoc-blink {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.pomoc-flash {
+  animation: pomoc-flash 700ms ease-out;
+}
+
+@keyframes pomoc-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--mantine-color-violet-5);
+  }
+  100% {
+    box-shadow: 0 0 0 18px transparent;
+  }
+}
+
+.pomoc-flash-uplink {
+  animation: pomoc-flash-uplink 700ms ease-out;
+}
+
+@keyframes pomoc-flash-uplink {
+  0% {
+    box-shadow: 0 0 0 0 var(--mantine-color-teal-5);
+  }
+  100% {
+    box-shadow: 0 0 0 18px transparent;
+  }
+}
+
+.pomoc-log-row {
+  cursor: pointer;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.pomoc-log-row:hover {
+  background: var(--mantine-color-default-hover);
+}

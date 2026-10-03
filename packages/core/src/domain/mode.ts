@@ -16,7 +16,12 @@ export interface ModePolicy {
   readonly originClasses: readonly MessageClass[];
   /** Classes a node in this mode accepts and forwards (superset of originClasses). */
   readonly relayClasses: readonly MessageClass[];
+  /** Hop limit a node in this mode gives a message it originates (the origination default). */
   readonly hopLimit: number;
+  /**
+   * Hop cap a node in this mode applies when relaying a bounded class (FR-NET-06: PEACE
+   * default 3, max 6). A requested hopLimit is clamped to it at origination.
+   */
   readonly maxHopLimit: number;
   readonly ttlTicks: number;
   readonly storeAndForward: boolean;
@@ -104,9 +109,13 @@ export const MODE_POLICIES: Readonly<Record<Mode, ModePolicy>> = {
 /** Classes whose hop limit is unbounded in every mode (FR-MODE-06). */
 export const UNBOUNDED_CLASSES: readonly MessageClass[] = ['OFFICIAL_ALERT', 'MODE_DECLARATION'];
 
-/** Effective hop limit a node in `policy` applies when forwarding `cls`. */
+/**
+ * Hop cap a node in `policy` applies when relaying `cls`: policy.maxHopLimit for bounded
+ * classes, unbounded for UNBOUNDED_CLASSES. The origination default is policy.hopLimit
+ * (see createMessage); a packet's effective limit is min(msg.hopLimit, this).
+ */
 export function hopLimitFor(policy: ModePolicy, cls: MessageClass): number {
-  return UNBOUNDED_CLASSES.includes(cls) ? Number.POSITIVE_INFINITY : policy.hopLimit;
+  return UNBOUNDED_CLASSES.includes(cls) ? Number.POSITIVE_INFINITY : policy.maxHopLimit;
 }
 
 /** TTL in ticks a node in `policy` assigns to a message of `cls` it originates. */

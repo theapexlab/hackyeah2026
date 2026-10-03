@@ -1,0 +1,43 @@
+import type { RefObject } from 'react';
+import { useSimStore } from '../../sim/store';
+import { useUiStore } from '../../ui/store';
+import { NodeGlyph } from './NodeGlyph';
+
+interface NodesLayerProps {
+  readonly gRef: RefObject<SVGGElement | null>;
+}
+
+/** Middle layer: the clickable SVG glyphs. The <g> transform is owned by useZoom, never by React. */
+export function NodesLayer({ gRef }: NodesLayerProps) {
+  const nodes = useSimStore((s) => s.snapshot.nodes);
+  const selectedNodeId = useUiStore((s) => s.selectedNodeId);
+  const hoveredNodeId = useUiStore((s) => s.hoveredNodeId);
+  const deselect = useUiStore((s) => s.deselect);
+
+  return (
+    <svg
+      className="pomoc-nodes"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}
+      onClick={deselect}
+    >
+      <g ref={gRef}>
+        {nodes.map((node) => (
+          <NodeGlyph
+            key={node.id}
+            id={node.id}
+            kind={node.kind}
+            x={node.x}
+            y={node.y}
+            mode={node.mode}
+            alive={node.alive}
+            hasBackhaul={node.hasBackhaul}
+            credentialKind={node.credentialKind}
+            storeSize={node.storeSize}
+            selected={selectedNodeId === node.id}
+            hovered={hoveredNodeId === node.id}
+          />
+        ))}
+      </g>
+    </svg>
+  );
+}
