@@ -1,7 +1,7 @@
 # Prior art and related initiatives
 
 Research done 2026-10-03. The purpose is twofold: cite what we build on, and show the
-jury precisely where Colony differs. Short version: every building block exists somewhere,
+jury precisely where Pomóc differs. Short version: every building block exists somewhere,
 nobody has combined verified identity, a dual peace / emergency mode, and a two-caste mesh
 of phones plus ISP routers into one civic system.
 
@@ -23,7 +23,7 @@ backbone dies with street power, ours continues on phones with store-and-forward
   "00000JAPAN" usable by anyone, any carrier, any SIM. No new hardware, activation within
   hours. This is the strongest real-world proof that "remote config change on existing
   radios in an emergency" is operationally and politically acceptable. Difference: it still
-  needs the backhaul behind the access point; Colony works when the backhaul is gone.
+  needs the backhaul behind the access point; Pomóc works when the backhaul is gone.
 - **Comcast Xfinity hotspots** (USA). Before hurricanes Ian, Idalia and Milton, Comcast
   opened 141 000 to 261 000 public hotspots, many of them the second SSID on customer home
   gateways, to customers and non-customers alike. Same pattern, same limitation.
@@ -73,7 +73,7 @@ backbone dies with street power, ours continues on phones with store-and-forward
 ## Identity and alerting infrastructure we plug into
 
 - **mObywatel** (Poland). The national identity app. Alert RCB warnings are being moved
-  into it in 2025 in addition to SMS, with threat-ended messages. Colony's registration
+  into it in 2025 in addition to SMS, with threat-ended messages. Pomóc's registration
   would be a module of mObywatel and its OFFICIAL_ALERT class would be the offline
   continuation of Alert RCB when the mobile network is down.
 - **EU Digital Identity Wallet (eIDAS 2.0)**. Every member state must offer a certified
@@ -83,11 +83,11 @@ backbone dies with street power, ours continues on phones with store-and-forward
   run on cellular (cell broadcast or location SMS) and therefore fail with the cells.
 - **EU direct-to-device satellite pilot (EENA, 2025)** and **European Critical
   Communication System (EUCCS)**: Europe is actively funding emergency communication
-  resilience; Colony is the ground layer those programmes lack.
+  resilience; Pomóc is the ground layer those programmes lack.
 
-## Where Colony is different
+## Where Pomóc is different
 
-| Property                                      | Consumer mesh apps | LoRa meshes   | 00000JAPAN / Xfinity | Street-light paper | Peerby         | **Colony**                      |
+| Property                                      | Consumer mesh apps | LoRa meshes   | 00000JAPAN / Xfinity | Street-light paper | Peerby         | **Pomóc**                      |
 | --------------------------------------------- | ------------------ | ------------- | -------------------- | ------------------ | -------------- | ------------------------------- |
 | Works with backhaul gone                      | Yes                | Yes           | No                   | Partly             | No             | Yes                             |
 | Works with grid power gone                    | Yes                | Yes (battery) | No                   | No                 | No             | Yes (phone caste)               |

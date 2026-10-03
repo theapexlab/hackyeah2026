@@ -7,7 +7,7 @@ resources sit idle because nobody nearby knows they exist; in emergencies, help 
 because nobody can reach it. Both are routing problems on the same graph: the graph of who
 is physically near whom.
 
-Colony is a state-backed, identity-verified proximity network that runs on devices people
+Pomóc is a state-backed, identity-verified proximity network that runs on devices people
 already own (phones) and devices the state already regulates (ISP home routers). It has
 one protocol and two rule sets.
 
@@ -62,22 +62,70 @@ Standard public key infrastructure, nothing exotic:
   lends is already covered.
 - Transport: internet when available, mesh when not. The protocol does not care.
 
-### Emergency mode
+### Emergency mode: levels and policy
 
-- Entered when (a) a node has seen no backhaul for a configurable window, or (b) a signed
-  national or regional declaration arrives over the mesh. Case (b) overrides (a).
-- Payments disabled. Request classes restricted to: life-critical, safety, official alert,
-  check-in ("I am OK"), and no-payment resource sharing (water, generator, shelter).
-- Hop limit raised, time-to-live extended, **store-and-forward** enabled: messages wait on
-  a node until a new neighbour appears. Moving people become data mules between islands.
-- Priority classes: life-critical traffic pre-empts everything.
+Emergency mode is not one setting. Every signed MODE_DECLARATION carries a **policy**,
+and three named levels are presets of that policy. This keeps the rules explainable
+without hard-wiring them.
+
+Policy fields: `portal_write` (none / check-in / check-in + structured request),
+`citizen_classes`, `hop_limit`, `ttl`, `store_and_forward`, `phone_topology_gossip`,
+`emission` (normal / reduced). Portal aggregation (see below) is always on.
+
+| | L1 Disruption | L2 Disaster | L3 Security |
+|---|---|---|---|
+| Typical cause | cell outage, cable cut, cyberattack on networks | flood, storm, earthquake, long blackout | terror, war, hybrid attack |
+| Entered by | local automation (no backhaul) or declaration | declaration only | declaration only |
+| Router captive portal | read + check-in, aggregated | read + check-in + structured request, aggregated, flagged unverified | **read only**, one-way |
+| Citizen classes | LIFE_CRITICAL, SAFETY, CHECK_IN, INFO, free GIVE | same | LIFE_CRITICAL, SAFETY, CHECK_IN only; **INFO off** |
+| Hop limit | 10 | 15 | 6 |
+| Phone topology gossip | on | on | **off** (routers only) |
+| Radio emission | normal | normal | reduced duty cycle |
+| Payments | off | off | off |
+
+Why L3 is stricter than "one-way":
+
+- **Rumour control.** Under terror or war the citizen INFO class is the disinformation
+  channel. Only Authority-signed messages propagate as information; life-critical and
+  safety requests remain because they are concrete and signed.
+- **Visibility.** Phone neighbour-list gossip draws a map of where people are. In peace
+  that is the coverage map; in war it is a target map. Routers keep gossiping because
+  their locations are known anyway.
+
+Transitions:
+
+- Local automation reaches **L1 at most**. L2 and L3 are political decisions and need a
+  signature. The worst an attacker can force by jamming cells is L1, which is permissive.
+- Downgrades need a signed all-clear or expiry. L3 always steps down through L1, never
+  straight to peace.
+- Declarations are regional: one district can be at L3 while the rest of the city is at L2.
+
+Common to all levels: payments disabled, priority classes on, store-and-forward on,
+and the degradation ladder below.
+
 - Degradation ladder:
   1. Internet up: normal.
   2. Mobile network down, power up: router backbone carries traffic, phones attach.
   3. Power down: routers dark, phone-only mesh for hours, store-and-forward bridges gaps.
   4. Gateways (satellite, generator-backed municipal sites) reconnect islands to the Authority.
-- An attacker who jams cells to force emergency mode gains nothing: emergency mode is
-  strictly less capable than peace mode.
+
+### Captive portal and flood resistance
+
+In emergency mode routers broadcast an open SSID and serve a captive portal, so phones
+without the app can take part. The portal is the only unauthenticated entry point, so it
+is bounded by three rules at every level:
+
+1. **Aggregate, never forward.** A router never relays portal inputs one by one. Once a
+   minute it emits one signed PORTAL_SUMMARY ("router X: 23 OK, 2 need evacuation"). This
+   is the single message class a relay certificate may originate, and it is rate-limited,
+   so mesh load is bounded by the number of routers, not by an attacker.
+2. **Free text stays local.** Any free-text field is visible only to clients of that
+   router. Only structured, few-byte fields enter the mesh.
+3. **Per-client rate limit** at the router (one input per device per minute). MAC
+   randomisation only distorts the local counter; rule 1 protects the mesh.
+
+Portal-derived numbers are always flagged unverified and shown on the dashboard in a
+separate column from signed citizen check-ins.
 
 ## Message classes
 

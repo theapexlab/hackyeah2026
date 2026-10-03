@@ -1,0 +1,19 @@
+flowchart TD
+  A[Message received from a neighbour] --> B{Signature and certificate chain valid against embedded root?}
+  B -- no --> D1[Drop: unverifiable]
+  B -- yes --> C{Message id seen before?}
+  C -- yes --> D2[Drop: duplicate]
+  C -- no --> E{Signed by a relay certificate and class is not TOPOLOGY?}
+  E -- yes --> D3[Drop: relays cannot act]
+  E -- no --> F{Class allowed in current mode?}
+  F -- no --> D4[Drop: e.g. priced request in emergency mode]
+  F -- yes --> G{Within TTL, hop limit and optional radius?}
+  G -- no --> D5[Drop: expired or out of reach]
+  G -- yes --> H{Signer within rate limit for this class?}
+  H -- no --> D6[Drop: rate limited]
+  H -- yes --> I[Record id, deliver locally if relevant]
+  I --> J{Neighbours available?}
+  J -- yes --> K[Enqueue by priority class, forward with hop+1]
+  J -- no, emergency mode --> L[Store until a new neighbour appears or TTL expires]
+  J -- no, peace mode --> M[Hold until TTL, then drop]
+  L -- new neighbour --> J

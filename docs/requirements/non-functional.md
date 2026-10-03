@@ -17,6 +17,9 @@ hackathon simulation demonstrates (D / P / –).
 | NFR-SEC-08 | The relay component on routers is isolated from the customer's LAN (separate network namespace / VLAN) and cannot read or modify household traffic.                                                                              | M        | –   |
 | NFR-SEC-09 | The emergency SSID is open by necessity; the captive portal is served over a locally self-signed TLS with a clear warning that the network is unencrypted.                                                                       | S        | –   |
 | NFR-SEC-10 | Forcing emergency mode (e.g. by cell jamming) must not grant any capability unavailable in peace mode. Emergency mode is strictly a subset plus different limits.                                                                | M        | D   |
+| NFR-SEC-11 | Mesh traffic originating from captive portals is bounded by design: at most one PORTAL_SUMMARY per router per minute, regardless of client count. An attacker at a portal can distort one router's counters, not load the mesh. | M | D |
+| NFR-SEC-12 | At L3 Security no unauthenticated input enters the mesh and no citizen-originated free-form information propagates; only Authority-signed information does. | M | D |
+| NFR-SEC-13 | At L3 Security phones do not emit topology gossip, so the mesh does not reveal the distribution of people; only routers at known locations gossip. | M | D |
 
 ## 2. Privacy
 

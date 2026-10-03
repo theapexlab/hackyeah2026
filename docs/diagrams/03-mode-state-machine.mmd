@@ -1,0 +1,37 @@
+stateDiagram-v2
+  [*] --> Peace
+  state "Peace mode" as Peace
+  state "L1 Disruption" as L1
+  state "L2 Disaster" as L2
+  state "L3 Security" as L3
+  Peace --> L1: no backhaul for 10 min, or signed declaration (L1)
+  L1 --> Peace: backhaul stable 15 min (local), or signed all-clear
+  Peace --> L2: signed declaration (L2)
+  L1 --> L2: signed declaration (L2)
+  Peace --> L3: signed declaration (L3)
+  L1 --> L3: signed declaration (L3)
+  L2 --> L3: signed declaration (L3)
+  L2 --> L1: signed all-clear or expiry
+  L3 --> L1: signed all-clear or expiry (never straight to peace)
+  note right of Peace
+    LEND / BORROW / GIVE / SELL / INFO
+    LIFE_CRITICAL, SAFETY allowed
+    payments optional, hop limit 3
+  end note
+  note right of L1
+    portal: read + check-in (aggregated)
+    citizen: LIFE_CRITICAL, SAFETY, CHECK_IN, INFO, free GIVE
+    hop 10, store-and-forward on
+    the most an attacker can force
+  end note
+  note right of L2
+    portal: read + check-in + structured request
+    (aggregated, flagged unverified)
+    hop 15, widest reach
+  end note
+  note left of L3
+    portal: read only, one-way
+    citizen INFO off (rumour control)
+    phone topology gossip off
+    hop 6, reduced radio emission
+  end note

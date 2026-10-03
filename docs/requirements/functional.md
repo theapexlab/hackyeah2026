@@ -67,6 +67,11 @@ The system described is the target vision. Only the simulation is built at HackY
 | FR-MODE-05 | Mode transitions are shown to the user with a clear, full-screen state change and a plain-language explanation of what is now possible.                                                          | M        | P   |
 | FR-MODE-06 | Mode declarations and all-clears propagate over the mesh with unbounded hop limit and maximum priority.                                                                                          | M        | D   |
 | FR-MODE-07 | Routers switch one radio band to mesh relay on entering emergency mode and keep serving the household on the other band.                                                                         | S        | P   |
+| FR-MODE-08 | A MODE_DECLARATION carries a policy (portal_write, citizen_classes, hop_limit, ttl, store_and_forward, phone_topology_gossip, emission). Three named levels are presets: L1 Disruption, L2 Disaster, L3 Security. | M | D |
+| FR-MODE-09 | Local automation enters L1 at most. L2 and L3 require a signed declaration. | M | D |
+| FR-MODE-10 | L3 Security: captive portal read-only, citizen INFO class disabled, hop limit 6, phone topology gossip off, reduced radio duty cycle. Life-critical, safety and check-in remain. | M | D |
+| FR-MODE-11 | Downgrades require a signed all-clear or declaration expiry; L3 steps down through L1, never directly to peace. | M | D |
+| FR-MODE-12 | Declarations carry a region; different districts may be at different levels at the same time. | S | D |
 
 ## 5. Emergency mode
 
@@ -92,6 +97,10 @@ The system described is the target vision. Only the simulation is built at HackY
 | FR-RT-04 | Routers report their static location (from the customer record, at street-segment precision) in topology gossip so coverage can be planned.                                                     | M        | D   |
 | FR-RT-05 | Battery-backed routers announce their backup status so that the coverage model and emergency routing can prefer them.                                                                           | C        | D   |
 | FR-RT-06 | A customer may opt out of relay participation; opt-out is recorded and the router is excluded from the coverage model.                                                                          | M        | P   |
+| FR-RT-07 | Routers never forward captive-portal inputs individually. They emit at most one signed PORTAL_SUMMARY per minute with aggregated counts; this is the only class a relay certificate may originate. | M | D |
+| FR-RT-08 | Free text entered on the captive portal is stored and shown only on that router; only structured fields enter the mesh. | M | P |
+| FR-RT-09 | The captive portal enforces a per-client rate limit (one input per device per minute) and accepts only what the current level's portal_write policy allows. | M | P |
+| FR-RT-10 | PORTAL_SUMMARY data is flagged unverified end to end and displayed separately from signed citizen check-ins on the dashboard. | M | D |
 
 ## 7. Authority, municipality and governance
 
@@ -111,7 +120,7 @@ The system described is the target vision. Only the simulation is built at HackY
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --- |
 | FR-SIM-01 | The simulation renders a district of Kraków with a static router layer (density derived from building footprints) and a mobile phone layer, as one proximity graph.                                                                                                                    | M        | D   |
 | FR-SIM-02 | Participation rate, radio range, hop limit and TTL are adjustable live, and the coverage / delivery curves update accordingly (percolation view).                                                                                                                                      | M        | D   |
-| FR-SIM-03 | Scenario script, playable step by step: (1) peace mode request and match, (2) forged request from an unregistered node rejected, (3) mobile network loss and switch to router backbone, (4) power loss, phone-only mesh, store-and-forward across islands, (5) coverage planning view. | M        | D   |
+| FR-SIM-03 | Scenario script, playable step by step: (1) peace mode request and match, (2) forged request from an unregistered node rejected, (3) mobile network loss and switch to router backbone at L1, (4) power loss, phone-only mesh, store-and-forward across islands, (5) declared L2 vs L3 side by side: portal behaviour, INFO class, phone gossip, hop radius, (6) coverage planning view. | M | D |
 | FR-SIM-04 | Signatures in the simulation are real (ed25519 via WebCrypto or an equivalent library), so rejection of forged messages is computed, not animated.                                                                                                                                     | S        | D   |
 | FR-SIM-05 | The simulation is deterministic for a given seed so the stage demo matches rehearsal.                                                                                                                                                                                                  | M        | D   |
 | FR-SIM-06 | Live metrics: reachable fraction, delivery rate per class, median hops, median latency, messages dropped by reason.                                                                                                                                                                    | M        | D   |

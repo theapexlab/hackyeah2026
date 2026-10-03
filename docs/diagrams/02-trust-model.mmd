@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber
+  participant W as Identity wallet (mObywatel / EUDI)
+  participant P as Citizen phone
+  participant A as Authority certificate service
+  participant R as Home router (relay only)
+  participant N as Neighbour phone
+  Note over P,A: Registration, once, peace mode, online
+  P->>P: generate key pair in secure element (private key never leaves)
+  P->>W: request verified attributes (name, address)
+  W-->>P: signed attributes
+  P->>A: public key + signed attributes
+  A-->>P: citizen certificate (pseudonym, 30-day validity, allowed classes)
+  Note over P,N: Any later time, any mode, no network needed
+  P->>P: sign request with private key
+  P->>R: request + certificate (BLE / Wi-Fi)
+  R->>R: verify chain with embedded Authority root key
+  R->>R: check message id, TTL, hop limit, class vs mode, rate limit
+  R->>N: forward with hop+1 (a relay never originates)
+  N->>N: verify offline the same way, show request
+  N->>R: signed acceptance
+  R->>P: acceptance back along recorded path
+  Note over R: Anything signed by a relay certificate that is not topology gossip is dropped

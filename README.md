@@ -1,4 +1,6 @@
-# Colony (working title)
+# Pomóc
+
+_The network that is already there._
 
 **A dual-use civic mesh for cities.** In peacetime it is a hyperlocal, identity-verified
 resource-sharing network: borrow a drill, get sour cream from the neighbour instead of
@@ -13,7 +15,7 @@ Built for **HackYeah 2026, Open Task: SMART CITY**.
 
 A city already owns almost everything it needs; it is just in the wrong pocket. A drill is
 used for 13 minutes in its lifetime, an AED hangs on a wall 80 metres from a cardiac arrest.
-Colony does not create resources, it creates the _route_ between a need and a resource,
+Pomóc does not create resources, it creates the _route_ between a need and a resource,
 through the people and devices physically around you. Every participant is a node in a
 proximity graph; routers are the static backbone, phones are the mobile edge. The same
 graph, the same identities and the same protocol serve two very different days: the
@@ -52,6 +54,7 @@ decision makers.
 - [Functional requirements](docs/requirements/functional.md)
 - [Non-functional requirements](docs/requirements/non-functional.md)
 - [Prior art and related initiatives](docs/prior-art.md)
+- [Diagrams](docs/diagrams/README.md): system overview, trust model, mode state machine, degradation ladder, AED scenario, forwarding logic
 
 ## Disclosure
 
