@@ -2,17 +2,18 @@ sequenceDiagram
   autonumber
   participant Q as Ola (requester, sector 112)
   participant M as Mesh (routers + phones, 10-hop radius)
-  participant K as Marek (nearest citizen to the AED, 4 hops away)
-  participant C as Chain: Ania, Piotr, Jan (hops 3, 2, 1)
+  participant K as Marek (nearest capable citizen to the AED)
+  participant O as Other responders in range
   participant G as Gateway / Authority
   Q->>M: LIFE_CRITICAL "cardiac arrest, AED needed" (signed, top priority)
   M->>M: flood with de-duplication, pre-empt all other classes
-  M->>K: request + registered AED record 40 m from Marek
+  M->>K: request + registered AED record 40 m from Marek, Ola 200 m further
+  M->>O: same request, lower rank (farther from the AED)
   K->>M: signed acceptance "fetching AED"
   M->>Q: acceptance back along path, ETA shown to Ola
-  M->>C: per-hop instruction: "receive from Marek, pass to Piotr", etc.
-  K-->>C: AED moves hand to hand along the discovered path
-  C-->>Q: AED arrives in about 90 s (staff would take 6 min)
-  Q->>M: CLOSE signed by requester, chain and other responders notified
+  M->>O: request marked taken; CPR-trained neighbour still asked to go to Ola
+  M->>K: guidance: to the AED, then to Ola (hop distance, direction)
+  K-->>Q: Marek runs the AED over in about 90 s (staff would take 6 min)
+  Q->>M: CLOSE signed by requester, responders notified
   M->>G: event reaches a gateway when a path exists, dashboard updated
-  Note over Q,G: The network routes the message, the crowd routes the object
+  Note over Q,G: Messages travel hop by hop. The object travels with one person.
