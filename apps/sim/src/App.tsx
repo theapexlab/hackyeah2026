@@ -8,11 +8,9 @@ import { MapView } from './features/map/MapView';
 import { TopBar } from './features/topbar/TopBar';
 import { useAppHotkeys } from './ui/hotkeys';
 import { useUiStore } from './ui/store';
-import { useSimNotifications } from './ui/useSimNotifications';
 
 export function App() {
   useAppHotkeys();
-  useSimNotifications();
   const navOpen = useUiStore((s) => s.navOpen);
   const hasSelection = useUiStore((s) => s.selectedNodeId !== null);
 

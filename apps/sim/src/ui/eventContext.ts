@@ -1,5 +1,4 @@
 import { useMantineColorScheme } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useCallback, useEffect, useRef } from 'react';
 import type { DemoEvent, EventContext } from '../sim/events';
 import { useSimStore } from '../sim/store';
@@ -33,13 +32,6 @@ export function useEventRunner(): (event: DemoEvent) => void {
         toggleColorScheme: () => toggleRef.current(),
         deselect: ui.deselect,
       },
-      notify: (notice) =>
-        notifications.show({
-          title: notice.title,
-          message: notice.message,
-          color: notice.color,
-          autoClose: 2500,
-        }),
     };
     event.run(ctx);
   }, []);

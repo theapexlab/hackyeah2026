@@ -22,9 +22,7 @@ pnpm check                      # Biome lint + format (pnpm check:fix to auto-fo
 
 Generate a world from the left panel (defaults: 1000 × 700 m, 40 phones, 25 routers,
 2 satellite gateways, seed 42), press Space, then fire events. Reset regenerates the same seed,
-so a repeated event script gives an identical log (the engine is deterministic). Phones can be
-dragged on the map (routers and gateways are static): carry one holding stored messages (amber
-badge) across an island gap and the store-and-forward flush bridges the islands. A lime badge
+so a repeated event script gives an identical log (the engine is deterministic). A lime badge
 counts the requests a phone currently sees as open.
 
 Dev-only: `pnpm dev` and open `/?fixture=1` to see a fabricated world without the engine
@@ -80,10 +78,8 @@ Three layers share one zoom transform on the map:
 2. **SVG** (`NodesLayer` / `NodeGlyph`): one memoised glyph per node with click, double-click
    (centre), hover and tooltip. Ring colour = node mode, green outer ring = backhaul, dashed =
    unregistered, amber badge = store-and-forward buffer, lime badge = open requests, dim =
-   powered off. Phones are draggable (`useNodeDrag`): screen travel since pointerdown is divided
-   by the live zoom scale, clamped to the world and dispatched as `MoveNode` through
-   `sim/commands` at most once per frame; the engine recomputes adjacency itself.
-3. **HTML overlay** (`MapOverlay`): legend, zoom buttons, mode vignette, Authority badge.
+   powered off.
+3. **HTML overlay** (`MapOverlay`): legend, zoom buttons, Authority badge.
 
 State lives in two zustand stores. `sim/store.ts` holds the engine, its latest immutable
 snapshot (a new reference on every tick or command, so selectors only re-render what

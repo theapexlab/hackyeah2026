@@ -1,4 +1,4 @@
-import type { NodeView, Snapshot } from '@pomoc/core';
+import { type NodeView, Prng, type Snapshot } from '@pomoc/core';
 import {
   allClear,
   autoRespond,
@@ -11,12 +11,6 @@ import {
 } from './commands';
 
 export type EventGroup = 'infrastructure' | 'authority' | 'citizens' | 'playback' | 'view';
-
-export interface EventNotice {
-  readonly title: string;
-  readonly message: string;
-  readonly color?: string;
-}
 
 /** UI-side actions an event may trigger; provided by ui/eventContext.ts. */
 export interface EventViewActions {
@@ -34,7 +28,6 @@ export interface EventViewActions {
 export interface EventContext {
   readonly snapshot: Snapshot;
   readonly view: EventViewActions;
-  readonly notify: (notice: EventNotice) => void;
 }
 
 export interface DemoEvent {
@@ -55,15 +48,16 @@ export const CANNED_ALERT_TEXT =
 
 export const FORGED_REQUEST_TEXT = 'URGENT: need rescue at the old bridge (forged credential)';
 
-/** First alive unregistered phone, else the first alive phone; null when the world is empty. */
-export function pickForgerySource(nodes: readonly NodeView[]): NodeView | null {
-  let fallback: NodeView | null = null;
-  for (const node of nodes) {
-    if (node.kind !== 'mobile' || !node.alive) continue;
-    if (node.credentialKind === 'none') return node;
-    fallback ??= node;
-  }
-  return fallback;
+/**
+ * A random alive unregistered phone, else a random alive phone; null when the world has none.
+ * The pick is seeded by `salt` (world seed and tick at the call site), so it varies between
+ * presses yet a reset world replays the same forger.
+ */
+export function pickForgerySource(nodes: readonly NodeView[], salt = 0): NodeView | null {
+  const phones = nodes.filter((n) => n.kind === 'mobile' && n.alive);
+  const unregistered = phones.filter((n) => n.credentialKind === 'none');
+  const pool = unregistered.length > 0 ? unregistered : phones;
+  return pool.length > 0 ? new Prng(salt).pick(pool) : null;
 }
 
 export const DEMO_EVENTS: readonly DemoEvent[] = [
@@ -74,15 +68,8 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: 'c',
     hotkeys: ['c'],
     group: 'infrastructure',
-    run: ({ notify }) => {
-      const up = toggleCells();
-      notify({
-        title: up ? 'Cellular network restored' : 'Cellular network down',
-        message: up
-          ? 'Phones regain WAN and backhaul.'
-          : 'Only routers and gateways carry traffic now.',
-        color: up ? 'green' : 'yellow',
-      });
+    run: () => {
+      toggleCells();
     },
   },
   {
@@ -92,13 +79,8 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: 'g',
     hotkeys: ['g'],
     group: 'infrastructure',
-    run: ({ notify }) => {
-      const up = toggleGrid();
-      notify({
-        title: up ? 'Power grid restored' : 'Power grid off',
-        message: up ? 'Routers come back online.' : 'Routers without battery backup go dark.',
-        color: up ? 'green' : 'red',
-      });
+    run: () => {
+      toggleGrid();
     },
   },
   {
@@ -108,9 +90,8 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: '1',
     hotkeys: ['1'],
     group: 'authority',
-    run: ({ notify }) => {
+    run: () => {
       declareMode('L1');
-      notify({ title: 'L1 Disruption declared', message: 'Whole area.', color: 'yellow' });
     },
   },
   {
@@ -120,9 +101,8 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: '2',
     hotkeys: ['2'],
     group: 'authority',
-    run: ({ notify }) => {
+    run: () => {
       declareMode('L2');
-      notify({ title: 'L2 Disaster declared', message: 'Whole area.', color: 'red' });
     },
   },
   {
@@ -132,9 +112,8 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: '3',
     hotkeys: ['3'],
     group: 'authority',
-    run: ({ notify }) => {
+    run: () => {
       declareMode('L3');
-      notify({ title: 'L3 Security declared', message: 'Whole area.', color: 'grape' });
     },
   },
   {
@@ -144,9 +123,8 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: '0',
     hotkeys: ['0'],
     group: 'authority',
-    run: ({ notify }) => {
+    run: () => {
       allClear();
-      notify({ title: 'All-clear issued', message: 'Declared modes expire.', color: 'blue' });
     },
   },
   {
@@ -156,9 +134,8 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: 'a',
     hotkeys: ['a'],
     group: 'authority',
-    run: ({ notify }) => {
+    run: () => {
       broadcastAlert(CANNED_ALERT_TEXT);
-      notify({ title: 'Official alert broadcast', message: CANNED_ALERT_TEXT, color: 'violet' });
     },
   },
   {
@@ -190,23 +167,18 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkey: 'f',
     hotkeys: ['f'],
     group: 'citizens',
-    run: ({ snapshot, notify }) => {
-      const source = pickForgerySource(snapshot.nodes);
-      if (!source) {
-        notify({ title: 'No phone available', message: 'Generate a world first.', color: 'gray' });
-        return;
-      }
+    run: ({ snapshot }) => {
+      const source = pickForgerySource(
+        snapshot.nodes,
+        Math.imul(snapshot.world.seed, 31) + snapshot.tick,
+      );
+      if (!source) return;
       sendRequest(
         source.id,
         'LIFE_CRITICAL',
         { kind: 'REQUEST', text: FORGED_REQUEST_TEXT },
         { forge: { claimKind: 'citizen' } },
       );
-      notify({
-        title: 'Forged request sent',
-        message: `${source.id} (${source.credentialKind}) claims a citizen credential; neighbours drop it as UNVERIFIABLE.`,
-        color: 'red',
-      });
     },
   },
   {

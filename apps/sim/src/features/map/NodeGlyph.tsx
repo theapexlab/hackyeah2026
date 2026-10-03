@@ -70,7 +70,7 @@ export const NodeGlyph = memo(function NodeGlyph({
       <g
         data-node={id}
         transform={transform}
-        className={kind === 'mobile' ? 'pomoc-node pomoc-node-draggable' : 'pomoc-node'}
+        className="pomoc-node"
         style={{ opacity: alive ? 1 : 0.35 }}
         onClick={(event) => handleClick(event, id)}
         onDoubleClick={(event) => handleDoubleClick(event, id)}

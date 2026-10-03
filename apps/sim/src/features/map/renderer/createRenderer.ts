@@ -3,7 +3,7 @@ import type { StoreApi } from 'zustand';
 import { createEventCursor } from '../../../lib/eventCursor';
 import { clamp, type Transform } from '../../../lib/geometry';
 import { nodeIndex } from '../../../sim/selectors';
-import type { Palette } from '../../../theme/tokens';
+import { MODE_VIGNETTE, type Palette, withAlpha } from '../../../theme/tokens';
 import type { UiState } from '../../../ui/store';
 import {
   buildEdgePaths,
@@ -13,7 +13,14 @@ import {
   type EdgePaths,
   edgePathsStale,
 } from './drawEdges';
-import { drawBursts, drawPulses, drawRegionTints, drawRipples, drawTrail } from './drawFx';
+import {
+  drawBursts,
+  drawPulses,
+  drawRegionTints,
+  drawRipples,
+  drawTrail,
+  drawVignette,
+} from './drawFx';
 import { buildStreetGrid, drawStreetGrid, type StreetGrid, streetGridStale } from './drawGrid';
 import { fxBus } from './fxBus';
 import { chainEdges, collectTrail, TRAIL_TICKS, type Trail, type TrailEdge } from './highlight';
@@ -233,6 +240,18 @@ export function createRenderer(options: RendererOptions): Renderer {
     drawStreetGrid(ctx, grid, palette, k);
     drawRegionTints(ctx, snapshot.declarations, snapshot.world, palette, k);
     if (ui.showRanges) drawRangeCircles(ctx, snapshot.nodes, palette, k);
+
+    // Alert vignette sits under edges and nodes so they stay legible in L1-L3.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const mode = snapshot.globalMode;
+    drawVignette(
+      ctx,
+      canvas.width / dpr,
+      canvas.height / dpr,
+      dpr,
+      withAlpha(palette.mode[mode], MODE_VIGNETTE[mode]),
+    );
+    ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * transform.x, dpr * transform.y);
     drawEdges(ctx, edges, palette, k);
 
     const highlight = resolveTrail(snapshot, ui);

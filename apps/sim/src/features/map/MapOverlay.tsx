@@ -13,7 +13,7 @@ import { formatSeed } from '../../lib/format';
 import { countNodes } from '../../sim/selectors';
 import { useSimStore } from '../../sim/store';
 import { KIND_ICON } from '../../theme/icons';
-import { MODE_COLOR, MODE_LABEL, MODE_VIGNETTE, modeColorVar } from '../../theme/tokens';
+import { MODE_COLOR, MODE_LABEL } from '../../theme/tokens';
 import { useUiStore } from '../../ui/store';
 import { AuthorityBadge } from './AuthorityBadge';
 import type { ZoomController } from './useZoom';
@@ -57,7 +57,7 @@ const Legend = memo(function Legend() {
         </Group>
         <Text size="xs" c="dimmed">
           green ring = backhaul · dashed = unregistered · amber badge = stored · lime badge = open
-          request · dim = off · drag a phone to move it
+          request · dim = off
         </Text>
       </Stack>
     </Paper>
@@ -66,7 +66,6 @@ const Legend = memo(function Legend() {
 
 /** Top layer: HTML chrome over the map. Only its controls take pointer events. */
 export function MapOverlay({ zoom }: MapOverlayProps) {
-  const mode = useSimStore((s) => s.snapshot.globalMode);
   const requestFit = useUiStore((s) => s.requestFit);
   const showRanges = useUiStore((s) => s.showRanges);
   const toggleRanges = useUiStore((s) => s.toggleRanges);
@@ -88,20 +87,9 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
       };
     }),
   );
-  const vignette = `color-mix(in srgb, ${modeColorVar(mode)} ${Math.round(MODE_VIGNETTE[mode] * 100)}%, transparent)`;
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 0,
-          boxShadow: `inset 0 0 160px ${vignette}`,
-          transition: 'box-shadow 600ms ease',
-        }}
-      />
-
       <Box style={{ position: 'absolute', top: 12, left: 12 }}>
         <Paper shadow="sm" radius="md" px="sm" py={6} withBorder>
           <Text size="xs" ff="monospace" c="dimmed">

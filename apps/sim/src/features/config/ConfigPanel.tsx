@@ -15,7 +15,7 @@ import { setMobility } from '../../sim/commands';
 import { createWorld, resetWorld, setTickInterval } from '../../sim/store';
 import { type ConfigDraft, draftToWorldConfig, useUiStore } from '../../ui/store';
 
-const MAX_NODES = 300;
+const MAX_NODES = 10_000;
 
 function toInt(value: number | string, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : fallback;

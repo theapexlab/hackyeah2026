@@ -1,8 +1,6 @@
 import '@mantine/core/styles.css';
-import '@mantine/notifications/styles.css';
 import './app.css';
 import { MantineProvider } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
@@ -21,7 +19,6 @@ async function bootstrap(): Promise<void> {
   createRoot(root).render(
     <StrictMode>
       <MantineProvider theme={theme} defaultColorScheme="dark">
-        <Notifications position="top-right" />
         <App />
       </MantineProvider>
     </StrictMode>,

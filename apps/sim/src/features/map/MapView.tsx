@@ -78,7 +78,7 @@ export function MapView() {
       }}
     >
       <CanvasLayer width={size.width} height={size.height} zoom={zoom} />
-      <NodesLayer gRef={gRef} transformRef={zoom.transformRef} />
+      <NodesLayer gRef={gRef} />
       <MapOverlay zoom={zoom} />
     </div>
   );

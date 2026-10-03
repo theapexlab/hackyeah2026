@@ -254,3 +254,44 @@ export function drawBursts(
     }
   }
 }
+
+/** Mode vignette blur, matching the old CSS `inset 0 0 160px` shadow. */
+const VIGNETTE_BLUR_PX = 160;
+let vignetteCache: { key: string; canvas: HTMLCanvasElement } | null = null;
+
+/**
+ * Mode-tinted inset glow along the viewport edges, drawn in screen space under the edges and
+ * nodes so the alert tint never washes them out. Rendered once per size/colour into an
+ * offscreen canvas because a 160px canvas shadow is too costly to repaint every frame.
+ */
+export function drawVignette(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  dpr: number,
+  color: string,
+): void {
+  const w = Math.round(width * dpr);
+  const h = Math.round(height * dpr);
+  if (w <= 0 || h <= 0) return;
+  const key = `${w}x${h}:${color}`;
+  if (vignetteCache?.key !== key) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const off = canvas.getContext('2d');
+    if (!off) return;
+    const blur = VIGNETTE_BLUR_PX * dpr;
+    const pad = blur * 3;
+    // A frame just outside the viewport; only its blurred shadow bleeds in.
+    off.beginPath();
+    off.rect(-pad, -pad, w + pad * 2, h + pad * 2);
+    off.rect(0, 0, w, h);
+    off.shadowColor = color;
+    off.shadowBlur = blur;
+    off.fillStyle = color;
+    off.fill('evenodd');
+    vignetteCache = { key, canvas };
+  }
+  ctx.drawImage(vignetteCache.canvas, 0, 0, width, height);
+}

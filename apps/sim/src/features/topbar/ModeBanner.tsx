@@ -8,14 +8,15 @@ interface ModeBannerProps {
   readonly children?: ReactNode;
 }
 
-/** Full-width header strip tinted by the global mode, with a solid mode label block on the left. */
+/** Full-width header strip tinted by the global mode, with a solid mode label block centred on top. */
 export function ModeBanner({ mode, children }: ModeBannerProps) {
   const color = modeColorVar(mode);
   return (
     <Box
       h="100%"
-      pr="sm"
+      px="sm"
       style={{
+        position: 'relative',
         display: 'flex',
         alignItems: 'center',
         gap: 'var(--mantine-spacing-sm)',
@@ -29,6 +30,11 @@ export function ModeBanner({ mode, children }: ModeBannerProps) {
         h="100%"
         aria-live="polite"
         style={{
+          position: 'absolute',
+          top: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

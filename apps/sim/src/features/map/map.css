@@ -19,16 +19,6 @@
   transition: opacity 300ms ease;
 }
 
-/* Phones move: grab at rest, grabbing while pressed (useNodeDrag sets data-dragging on the svg). */
-.pomoc-node-draggable {
-  cursor: grab;
-}
-
-.pomoc-nodes[data-dragging],
-.pomoc-nodes[data-dragging] .pomoc-node {
-  cursor: grabbing;
-}
-
 .pomoc-node-selected {
   transform-box: fill-box;
   transform-origin: center;
