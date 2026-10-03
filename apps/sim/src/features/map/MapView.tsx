@@ -1,81 +1,53 @@
 import { useEffect, useRef } from 'react';
-import { useSimNodes, useSimWorld } from '../../sim/selectors';
-import { useUIStore } from '../../ui/store';
+import { useSimStore } from '../../sim/store';
 import { CanvasLayer } from './CanvasLayer';
 import { MapOverlay } from './MapOverlay';
+import { registerMapControls } from './mapControls';
 import { NodesLayer } from './NodesLayer';
 import { useZoom } from './useZoom';
 
+const getWorld = () => {
+  const w = useSimStore.getState().snapshot?.world;
+  return { width: w?.width ?? 0, height: w?.height ?? 0 };
+};
+const getNodePos = (id: string) => useSimStore.getState().snapshot?.nodes.find((n) => n.id === id);
+
 export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const world = useSimWorld();
-  const nodes = useSimNodes();
-  const selectedNodeId = useUIStore((s) => s.selectedNodeId);
-  const { transformRef, fitToWorld, focusNode } = useZoom(
-    containerRef as React.RefObject<HTMLElement>,
+  const svgRef = useRef<SVGSVGElement>(null);
+  const groupRef = useRef<SVGGElement>(null);
+  const generation = useSimStore((s) => s.generation);
+  const { transformRef, fitToWorld, focusNode } = useZoom({
+    containerRef,
+    groupRef,
+    svgRef,
+    getWorld,
+    getNodePos,
+  });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: generation is the refit trigger
+  useEffect(() => fitToWorld(false), [generation, fitToWorld]);
+  useEffect(
+    () => registerMapControls({ fit: () => fitToWorld(true), focus: focusNode }),
+    [fitToWorld, focusNode],
   );
-
-  useEffect(() => {
-    if (world && containerRef.current) {
-      fitToWorld(
-        containerRef.current.offsetWidth,
-        containerRef.current.offsetHeight,
-        world.width,
-        world.height,
-      );
-    }
-  }, [world?.width, world?.height, fitToWorld]);
-
-  const handleFitToWorld = () => {
-    if (world && containerRef.current) {
-      fitToWorld(
-        containerRef.current.offsetWidth,
-        containerRef.current.offsetHeight,
-        world.width,
-        world.height,
-      );
-    }
-  };
-
-  const handleFocusNode = () => {
-    if (selectedNodeId && selectedNodeId !== 'authority' && world && containerRef.current) {
-      const node = nodes.find((n) => n.id === selectedNodeId);
-      if (node) {
-        focusNode(
-          node.x,
-          node.y,
-          containerRef.current.offsetWidth,
-          containerRef.current.offsetHeight,
-          100,
-        );
-      }
-    }
-  };
-
-  // Register zoom functions in store for hotkey access
-  const setFitToWorld = useUIStore((s) => s.setFitToWorld);
-  const setFocusNode = useUIStore((s) => s.setFocusNode);
-
-  useEffect(() => {
-    setFitToWorld(() => handleFitToWorld);
-    setFocusNode(() => handleFocusNode);
-  }, [handleFitToWorld, handleFocusNode, setFitToWorld, setFocusNode]);
 
   return (
     <div
       ref={containerRef}
       style={{
         position: 'relative',
-        width: '100%',
-        height: '100%',
+        flex: 1,
+        minHeight: 0,
+        minWidth: 0,
         overflow: 'hidden',
-        backgroundColor: '#1a1b1e',
+        touchAction: 'none',
+        background: 'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))',
       }}
-      onDoubleClick={handleFocusNode}
     >
       <CanvasLayer transformRef={transformRef} />
-      <NodesLayer transform={transformRef.current} />
-      <MapOverlay onFitToWorld={handleFitToWorld} onFocusNode={handleFocusNode} />
+      <NodesLayer svgRef={svgRef} groupRef={groupRef} transformRef={transformRef} />
+      <MapOverlay />
     </div>
   );
 }

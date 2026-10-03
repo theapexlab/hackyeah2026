@@ -1,5 +1,4 @@
-import { AppShell } from '@mantine/core';
-import { DEFAULT_WORLD_CONFIG } from '@pomoc/core';
+import { AppShell, ScrollArea, useMantineColorScheme } from '@mantine/core';
 import { useEffect } from 'react';
 import { BottomStrip } from './features/bottom/BottomStrip';
 import { ConfigPanel } from './features/config/ConfigPanel';
@@ -8,40 +7,32 @@ import { ShortcutsModal } from './features/events/ShortcutsModal';
 import { InspectorDrawer } from './features/inspector/InspectorDrawer';
 import { MapView } from './features/map/MapView';
 import { TopBar } from './features/topbar/TopBar';
-import { playback } from './sim/playback';
+import { startPlayback } from './sim/playback';
 import { useSimStore } from './sim/store';
 import { useHotkeys } from './ui/hotkeys';
-import { useUIStore } from './ui/store';
+import { useUIStore, worldFromDraft } from './ui/store';
 
 export default function App() {
-  const selectedNodeId = useUIStore((s) => s.selectedNodeId);
+  const selected = useUIStore((s) => s.selectedNodeId);
   const navOpen = useUIStore((s) => s.navOpen);
+  const { toggleColorScheme } = useMantineColorScheme();
 
-  // Initialize hotkeys
-  useHotkeys();
+  useHotkeys({ toggleScheme: toggleColorScheme });
 
-  // Generate initial world on mount
-  useEffect(() => {
-    const createWorld = useSimStore.getState().createWorld;
-    createWorld(DEFAULT_WORLD_CONFIG);
-  }, []);
+  // Create the first world before children read the snapshot; idempotent under StrictMode.
+  if (!useSimStore.getState().engine) {
+    const { configDraft } = useUIStore.getState();
+    useSimStore.getState().setTickIntervalMs(configDraft.tickMs);
+    useSimStore.getState().createWorld(worldFromDraft(configDraft), configDraft.mobility);
+  }
 
-  // Clean up playback on unmount
-  useEffect(() => {
-    return () => {
-      playback.stop();
-    };
-  }, []);
+  useEffect(() => startPlayback(), []);
 
   return (
     <AppShell
-      header={{ height: 56 }}
-      navbar={{ width: 300, breakpoint: 'sm', collapsed: { mobile: !navOpen } }}
-      aside={{
-        width: 380,
-        breakpoint: 'md',
-        collapsed: { mobile: !selectedNodeId, desktop: !selectedNodeId },
-      }}
+      header={{ height: 64 }}
+      navbar={{ width: 300, breakpoint: 'sm', collapsed: { mobile: !navOpen, desktop: !navOpen } }}
+      aside={{ width: 380, breakpoint: 'sm', collapsed: { mobile: !selected, desktop: !selected } }}
       footer={{ height: 200 }}
       padding={0}
     >
@@ -49,13 +40,14 @@ export default function App() {
         <TopBar />
       </AppShell.Header>
 
-      <AppShell.Navbar p={0} style={{ display: 'flex', flexDirection: 'column' }}>
-        <EventsPanel />
-        <div style={{ flex: 1, overflowY: 'auto' }} />
-        <ConfigPanel />
+      <AppShell.Navbar>
+        <ScrollArea h="100%" type="auto">
+          <EventsPanel />
+          <ConfigPanel />
+        </ScrollArea>
       </AppShell.Navbar>
 
-      <AppShell.Main style={{ display: 'flex', height: '100dvh', minHeight: 0 }}>
+      <AppShell.Main style={{ display: 'flex', height: '100dvh' }}>
         <MapView />
       </AppShell.Main>
 
@@ -63,7 +55,7 @@ export default function App() {
         <InspectorDrawer />
       </AppShell.Aside>
 
-      <AppShell.Footer p={0}>
+      <AppShell.Footer>
         <BottomStrip />
       </AppShell.Footer>
 

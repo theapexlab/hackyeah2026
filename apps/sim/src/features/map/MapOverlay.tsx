@@ -1,58 +1,67 @@
 import { ActionIcon, Group, Stack, Tooltip } from '@mantine/core';
-import { IconMaximize, IconRadioactive, IconTarget } from '@tabler/icons-react';
-import { useSimWorld } from '../../sim/selectors';
-import { modeColors } from '../../theme/tokens';
+import { IconCircles, IconFocus2, IconMaximize } from '@tabler/icons-react';
+import { dominantMode } from '../../lib/modes';
+import { useModeCounts } from '../../sim/selectors';
+import { modeCss } from '../../theme/tokens';
 import { useUIStore } from '../../ui/store';
 import { AuthorityBadge } from './AuthorityBadge';
+import { Legend } from './Legend';
+import { mapControls } from './mapControls';
 
-interface MapOverlayProps {
-  onFitToWorld: () => void;
-  onFocusNode: () => void;
-}
-
-export function MapOverlay({ onFitToWorld, onFocusNode }: MapOverlayProps) {
+export function MapOverlay() {
   const showRanges = useUIStore((s) => s.showRanges);
-  const setShowRanges = useUIStore((s) => s.setShowRanges);
-  const world = useSimWorld();
-
-  const modeColor = world ? modeColors['PEACE'] : '#4dabf7';
+  const selected = useUIStore((s) => s.selectedNodeId);
+  const mode = dominantMode(useModeCounts());
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}
-    >
-      <Stack gap="sm" align="flex-end">
+    <>
+      <div
+        className="map-vignette"
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          boxShadow: `inset 0 0 160px ${modeCss(mode)}`,
+          opacity: mode === 'PEACE' ? 0.3 : 0.5,
+        }}
+      />
+      <Stack
+        gap="xs"
+        align="flex-end"
+        style={{ position: 'absolute', top: 12, right: 12, pointerEvents: 'none' }}
+      >
         <AuthorityBadge />
-
-        <Group gap="xs" style={{ pointerEvents: 'auto' }}>
-          <Tooltip label="Toggle range circles" position="left">
+        <Group gap="xs" style={{ pointerEvents: 'auto' }} data-no-zoom>
+          <Tooltip label="Range circles (v)">
             <ActionIcon
-              onClick={() => setShowRanges(!showRanges)}
-              variant={showRanges ? 'filled' : 'light'}
+              aria-label="Toggle range circles"
+              variant={showRanges ? 'filled' : 'default'}
+              onClick={() => useUIStore.getState().setShowRanges(!showRanges)}
             >
-              <IconRadioactive size={16} />
+              <IconCircles size={16} />
             </ActionIcon>
           </Tooltip>
-
-          <Tooltip label="Fit to world" position="left">
-            <ActionIcon onClick={onFitToWorld}>
+          <Tooltip label="Fit view (h)">
+            <ActionIcon aria-label="Fit view" variant="default" onClick={mapControls.fit}>
               <IconMaximize size={16} />
             </ActionIcon>
           </Tooltip>
-
-          <Tooltip label="Focus selected" position="left">
-            <ActionIcon onClick={onFocusNode}>
-              <IconTarget size={16} />
+          <Tooltip label="Focus selected node (or double-click a node)">
+            <ActionIcon
+              aria-label="Focus selected node"
+              variant="default"
+              disabled={!selected || selected === 'authority'}
+              onClick={() => selected && mapControls.focus(selected)}
+            >
+              <IconFocus2 size={16} />
             </ActionIcon>
           </Tooltip>
         </Group>
       </Stack>
-    </div>
+      <div style={{ position: 'absolute', left: 12, bottom: 12, pointerEvents: 'none' }}>
+        <Legend />
+      </div>
+    </>
   );
 }

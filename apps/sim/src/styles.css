@@ -1,0 +1,67 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.node-glyph {
+  cursor: pointer;
+  outline: none;
+}
+.node-glyph .node-body {
+  transition: transform 120ms ease-out;
+}
+.node-glyph:hover .node-body,
+.node-glyph:focus-visible .node-body {
+  transform: scale(1.15);
+}
+.node-glyph:focus-visible .node-hit {
+  stroke: var(--mantine-color-blue-5);
+  stroke-width: 2;
+}
+
+@keyframes sel-ring {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.45;
+  }
+}
+.sel-ring {
+  animation: sel-ring 1.4s ease-in-out infinite;
+}
+
+@keyframes store-badge {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+.store-badge {
+  animation: store-badge 1.1s ease-in-out infinite;
+}
+
+@keyframes authority-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--mantine-color-violet-5);
+  }
+  100% {
+    box-shadow: 0 0 0 22px transparent;
+  }
+}
+.authority-flash {
+  animation: authority-flash 800ms ease-out;
+}
+
+.map-vignette {
+  transition: box-shadow 600ms ease;
+}

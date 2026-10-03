@@ -1,118 +1,55 @@
 import {
-  Command,
-  CredentialKind,
+  type Circle,
+  type Command,
   type MessageClass,
-  Mode,
+  type Mode,
   messageIdFromString,
   type NodeId,
+  nodeIdFromString,
 } from '@pomoc/core';
 import { useSimStore } from './store';
 
+/** The only place the UI mutates the engine. */
+const dispatch = (cmd: Command): void => useSimStore.getState().engine?.dispatch(cmd);
+
 export const simCommands = {
-  resetWorld: (worldConfig: any) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'RESET_WORLD', world: worldConfig } as any);
-  },
-
-  setCellsUp: (up: boolean) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'SET_CELLS_UP', up } as any);
-  },
-
-  setGridUp: (up: boolean) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'SET_GRID_UP', up } as any);
-  },
-
-  setNodePowered: (nodeId: NodeId, powered: boolean | null) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'SET_NODE_POWERED', nodeId, powered } as any);
-  },
-
-  moveNode: (nodeId: NodeId, x: number, y: number) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'MOVE_NODE', nodeId, x, y } as any);
-  },
-
-  setMobility: (enabled: boolean, stepMetres?: number) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'SET_MOBILITY', enabled, stepMetres } as any);
-  },
-
-  setConfig: (patch: any) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'SET_CONFIG', patch } as any);
-  },
-
-  declareMode: (
-    level: 'L1' | 'L2' | 'L3',
-    region?: any,
-    durationTicks?: number,
-    forged?: boolean,
-  ) => {
-    const engine = useSimStore.getState().engine;
-    if (engine)
-      engine.dispatch({ type: 'DECLARE_MODE', level, region, durationTicks, forged } as any);
-  },
-
-  allClear: (region?: any, forged?: boolean) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'ALL_CLEAR', region, forged } as any);
-  },
-
-  broadcastAlert: (text: string, region?: any, forged?: boolean) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'BROADCAST_ALERT', text, region, forged } as any);
-  },
-
+  setCellsUp: (up: boolean) => dispatch({ type: 'SET_CELLS_UP', up }),
+  setGridUp: (up: boolean) => dispatch({ type: 'SET_GRID_UP', up }),
+  setNodePowered: (nodeId: string, powered: boolean | null) =>
+    dispatch({ type: 'SET_NODE_POWERED', nodeId: nodeIdFromString(nodeId), powered }),
+  moveNode: (nodeId: NodeId, x: number, y: number) => dispatch({ type: 'MOVE_NODE', nodeId, x, y }),
+  setMobility: (enabled: boolean, stepMetres?: number) =>
+    dispatch({ type: 'SET_MOBILITY', enabled, stepMetres }),
+  declareMode: (level: Exclude<Mode, 'PEACE'>, region?: Circle, durationTicks?: number) =>
+    dispatch({ type: 'DECLARE_MODE', level, region, durationTicks }),
+  allClear: (region?: Circle) => dispatch({ type: 'ALL_CLEAR', region }),
+  broadcastAlert: (text: string, region?: Circle) =>
+    dispatch({ type: 'BROADCAST_ALERT', text, region }),
   sendRequest: (
-    from: NodeId,
+    from: string,
     messageClass: MessageClass,
-    payload: any,
-    hopLimit?: number,
-    forge?: any,
-  ) => {
-    const engine = useSimStore.getState().engine;
-    if (engine)
-      engine.dispatch({
-        type: 'SEND_REQUEST',
-        from,
-        class: messageClass,
-        payload,
-        hopLimit,
-        forge,
-      } as any);
-  },
-
-  sendCheckIn: (from: NodeId, status: 'OK' | 'NEED_EVACUATION' | 'TRAPPED') => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'SEND_CHECK_IN', from, status } as any);
-  },
-
-  sendRandomRequest: (from?: NodeId) => {
-    const engine = useSimStore.getState().engine;
-    if (engine) engine.dispatch({ type: 'SEND_RANDOM_REQUEST', from } as any);
-  },
-
-  accept: (nodeId: NodeId, requestId: string) => {
-    const engine = useSimStore.getState().engine;
-    if (engine)
-      engine.dispatch({ type: 'ACCEPT', nodeId, requestId: messageIdFromString(requestId) } as any);
-  },
-
-  autoRespond: (requestId?: string, strategy?: 'nearest-hops' | 'random') => {
-    const engine = useSimStore.getState().engine;
-    if (engine)
-      engine.dispatch({
-        type: 'AUTO_RESPOND',
-        requestId: requestId ? messageIdFromString(requestId) : undefined,
-        strategy: strategy ?? 'nearest-hops',
-      } as any);
-  },
-
-  close: (requestId: string) => {
-    const engine = useSimStore.getState().engine;
-    if (engine)
-      engine.dispatch({ type: 'CLOSE', requestId: messageIdFromString(requestId) } as any);
-  },
+    text: string,
+    opts: { hopLimit?: number; price?: number; forge?: { claimKind: string } } = {},
+  ) =>
+    dispatch({
+      type: 'SEND_REQUEST',
+      from: nodeIdFromString(from),
+      class: messageClass,
+      text,
+      ...opts,
+    }),
+  sendCheckIn: (from: string, status: 'OK' | 'NEED_EVACUATION' | 'TRAPPED') =>
+    dispatch({ type: 'SEND_CHECK_IN', from: nodeIdFromString(from), status }),
+  sendRandomRequest: (from?: string) =>
+    dispatch({ type: 'SEND_RANDOM_REQUEST', from: from ? nodeIdFromString(from) : undefined }),
+  accept: (nodeId: string, requestId: string) =>
+    dispatch({
+      type: 'ACCEPT',
+      nodeId: nodeIdFromString(nodeId),
+      requestId: messageIdFromString(requestId),
+    }),
+  autoRespond: (strategy: 'nearest-hops' | 'random' = 'nearest-hops') =>
+    dispatch({ type: 'AUTO_RESPOND', strategy }),
+  close: (requestId: string) =>
+    dispatch({ type: 'CLOSE', requestId: messageIdFromString(requestId) }),
 };

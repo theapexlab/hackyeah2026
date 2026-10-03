@@ -3,5 +3,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["src/**/*", "index.html"]
+  "include": ["src/**/*", "vite.config.ts"]
 }

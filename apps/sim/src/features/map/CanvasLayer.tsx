@@ -1,55 +1,48 @@
-import { useEffect, useRef } from 'react';
+import { useComputedColorScheme, useMantineTheme } from '@mantine/core';
+import { type RefObject, useEffect, useRef } from 'react';
 import type { Transform } from '../../lib/geometry';
-import { useEngine, useLastTickAt, useTickIntervalMs } from '../../sim/selectors';
+import { useSimStore } from '../../sim/store';
+import { resolvePalette } from '../../theme/tokens';
 import { useUIStore } from '../../ui/store';
-import { createRenderer } from './renderer/createRenderer';
+import { createRenderer, type RenderView } from './renderer/createRenderer';
 
 interface CanvasLayerProps {
-  transformRef: React.MutableRefObject<Transform>;
+  transformRef: RefObject<Transform>;
 }
 
 export function CanvasLayer({ transformRef }: CanvasLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engine = useEngine();
-  const lastTickAt = useLastTickAt();
-  const tickIntervalMs = useTickIntervalMs();
-  const speed = useUIStore((s) => s.speed);
-  const showRanges = useUIStore((s) => s.showRanges);
-  const showTopologyPackets = useUIStore((s) => s.showTopologyPackets);
+  const engine = useSimStore((s) => s.engine);
+  const theme = useMantineTheme();
+  const scheme = useComputedColorScheme('dark');
+  const paletteRef = useRef(resolvePalette(theme, scheme));
+  paletteRef.current = resolvePalette(theme, scheme);
 
   useEffect(() => {
-    if (!canvasRef.current || !engine) return;
-
-    const scheme = document.documentElement.getAttribute('data-mantine-color-scheme') as
-      | 'light'
-      | 'dark'
-      | null;
-
-    const renderer = createRenderer({
-      canvas: canvasRef.current,
-      transformRef,
-      engine,
-      lastTickAt,
-      tickIntervalMs,
-      speed,
-      showRanges,
-      showTopologyPackets,
-      scheme: scheme || 'dark',
-    });
-
-    return () => renderer.dispose();
-  }, [engine, lastTickAt, tickIntervalMs, speed, showRanges, showTopologyPackets, transformRef]);
+    const canvas = canvasRef.current;
+    if (!canvas || !engine) return;
+    const getView = (): RenderView => {
+      const ui = useUIStore.getState();
+      return {
+        transform: transformRef.current,
+        palette: paletteRef.current,
+        tickMs: useSimStore.getState().tickIntervalMs / ui.speed,
+        showRanges: ui.showRanges,
+        showTopologyPackets: ui.showTopologyPackets,
+        selectedId: ui.selectedNodeId,
+        hoveredId: ui.hoveredNodeId,
+        highlightedMessageId: ui.highlightedMessageId,
+      };
+    };
+    const renderer = createRenderer(canvas, engine, getView);
+    return renderer.dispose;
+  }, [engine, transformRef]);
 
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-      }}
+      aria-hidden
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
     />
   );
 }

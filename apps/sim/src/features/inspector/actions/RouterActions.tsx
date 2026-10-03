@@ -1,39 +1,32 @@
-import { Stack, Switch, Text } from '@mantine/core';
+import { Button, Stack, Switch, Text } from '@mantine/core';
 import type { NodeDetail } from '@pomoc/core';
-import { useState } from 'react';
 import { formatBackhaul } from '../../../lib/format';
 import { simCommands } from '../../../sim/commands';
 
-interface RouterActionsProps {
-  node: NodeDetail;
-}
-
-export function RouterActions({ node }: RouterActionsProps) {
-  const [powered, setPowered] = useState(node.alive);
-
-  const handleTogglePower = () => {
-    const newPowered = !powered;
-    setPowered(newPowered);
-    simCommands.setNodePowered(node.id, newPowered ? true : false);
-  };
-
+export function RouterActions({ detail }: { detail: NodeDetail }) {
   return (
-    <Stack gap="md">
-      <div>
-        <Text fw={500} size="sm" mb="xs">
-          Power Control
-        </Text>
-        <Switch
-          label={powered ? 'Powered on' : 'Powered off'}
-          checked={powered}
-          onChange={handleTogglePower}
-        />
-        {node.kind === 'gateway' && (
-          <Text size="xs" c="dimmed" mt="xs">
-            Backhaul: {formatBackhaul(node.backhaul)}
-          </Text>
-        )}
-      </div>
+    <Stack gap="xs">
+      <Text fw={600} size="sm">
+        Power
+      </Text>
+      <Switch
+        label={detail.alive ? 'Powered on' : 'Powered off'}
+        checked={detail.alive}
+        onChange={(e) => simCommands.setNodePowered(detail.id, e.currentTarget.checked)}
+      />
+      {detail.poweredOverride !== null && (
+        <Button
+          size="compact-xs"
+          variant="subtle"
+          onClick={() => simCommands.setNodePowered(detail.id, null)}
+        >
+          Back to automatic (grid / battery)
+        </Button>
+      )}
+      <Text size="xs" c="dimmed">
+        Backhaul: {formatBackhaul(detail.backhaul)} &middot; battery:{' '}
+        {detail.batteryBacked ? 'yes' : 'no'}
+      </Text>
     </Stack>
   );
 }

@@ -1,74 +1,80 @@
-import { Group, Progress, RingProgress, Stack, Text } from '@mantine/core';
-import type { MetricsView } from '@pomoc/core';
+import { Badge, Group, Progress, RingProgress, ScrollArea, Stack, Text } from '@mantine/core';
+import type { MessageClass } from '@pomoc/core';
+import { formatClass } from '../../lib/format';
 import { useSimMetrics } from '../../sim/selectors';
+import { classCss } from '../../theme/tokens';
+
+const pct = (f: number) => Math.round(f * 100);
+
+function Ring({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <Stack gap={0} align="center">
+      <RingProgress
+        size={64}
+        thickness={7}
+        sections={[{ value, color }]}
+        label={
+          <Text size="xs" ta="center" fw={700}>
+            {value}%
+          </Text>
+        }
+        aria-label={`${label} ${value} percent`}
+      />
+      <Text size="xs">{label}</Text>
+    </Stack>
+  );
+}
 
 export function MetricsPanel() {
-  const metrics: MetricsView | undefined = useSimMetrics();
-  const metricsData = metrics || {
-    reachableFraction: 0,
-    authorityReachableFraction: 0,
-    componentCount: 0,
-    storedTotal: 0,
-    transitsThisTick: 0,
-    deliveriesByClass: {},
-    dropsByReason: {},
-    medianHops: 0,
-    medianLatency: 0,
-  };
-
-  const reachablePercent = Math.round(metricsData.reachableFraction * 100);
-  const authorityReachablePercent = Math.round(metricsData.authorityReachableFraction * 100);
+  const m = useSimMetrics();
+  if (!m) return null;
+  const deliveries = (Object.entries(m.deliveriesByClass) as [MessageClass, number][]).filter(
+    ([, n]) => n > 0,
+  );
+  const max = Math.max(1, ...deliveries.map(([, n]) => n));
+  const drops = Object.entries(m.dropsByReason).filter(([, n]) => n > 0);
 
   return (
-    <Stack gap="md" p="md">
-      <Group grow>
-        <div style={{ textAlign: 'center' }}>
-          <RingProgress
-            sections={[{ value: reachablePercent, color: 'blue' }]}
-            label={<Text size="xs">{reachablePercent}%</Text>}
-          />
-          <Text size="xs" mt="xs">
-            Reachable
+    <ScrollArea h="100%" type="auto">
+      <Group p="xs" gap="md" align="flex-start" wrap="nowrap">
+        <Ring value={pct(m.reachableFraction)} label="Reachable" color="blue" />
+        <Ring value={pct(m.authorityReachableFraction)} label="Authority" color="violet" />
+        <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+          <Text size="xs">
+            Components {m.componentCount} &middot; stored {m.storedTotal} &middot; median hops{' '}
+            {m.medianHops} &middot; latency {m.medianLatency}
           </Text>
-        </div>
-
-        <div style={{ textAlign: 'center' }}>
-          <RingProgress
-            sections={[{ value: authorityReachablePercent, color: 'green' }]}
-            label={<Text size="xs">{authorityReachablePercent}%</Text>}
-          />
-          <Text size="xs" mt="xs">
-            Authority
-          </Text>
-        </div>
-      </Group>
-
-      <div>
-        <Text size="xs" fw={500} mb="xs">
-          Components: {metricsData.componentCount}
-        </Text>
-        <Text size="xs" fw={500} mb="xs">
-          Stored: {metricsData.storedTotal}
-        </Text>
-      </div>
-
-      <div>
-        <Text size="xs" fw={500} mb="xs">
-          Delivery by Class
-        </Text>
-        <Stack gap="xs">
-          {Object.entries(metricsData.deliveriesByClass)
-            .slice(0, 3)
-            .map(([cls, count]) => (
-              <Group key={cls} gap="xs">
-                <Text size="xs" style={{ flex: 1 }}>
-                  {cls}
-                </Text>
-                <Progress value={Math.min(100, count * 5)} w={100} size="sm" />
-              </Group>
+          {deliveries.length === 0 && (
+            <Text size="xs" c="dimmed">
+              No deliveries yet
+            </Text>
+          )}
+          {deliveries.map(([cls, n]) => (
+            <Group key={cls} gap={6} wrap="nowrap">
+              <Text size="xs" w={110} truncate>
+                {formatClass(cls)}
+              </Text>
+              <Progress
+                value={(n / max) * 100}
+                size="sm"
+                style={{ flex: 1 }}
+                aria-label={`${formatClass(cls)} deliveries`}
+                styles={{ section: { background: classCss(cls) } }}
+              />
+              <Text size="xs" w={28} ta="right">
+                {n}
+              </Text>
+            </Group>
+          ))}
+          <Group gap={4}>
+            {drops.map(([reason, n]) => (
+              <Badge key={reason} size="xs" color="red" variant="light">
+                {reason} {n}
+              </Badge>
             ))}
+          </Group>
         </Stack>
-      </div>
-    </Stack>
+      </Group>
+    </ScrollArea>
   );
 }

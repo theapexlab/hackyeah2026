@@ -1,36 +1,44 @@
-import { Badge, Group, Text } from '@mantine/core';
+import { Group, Text } from '@mantine/core';
 import { formatMode } from '../../lib/format';
-import { useSimSnapshot } from '../../sim/selectors';
-import { modeColors } from '../../theme/tokens';
+import { useModeCounts } from '../../sim/selectors';
+import { MODE_ORDER, modeCss } from '../../theme/tokens';
 
 export function ModeBanner() {
-  const snapshot = useSimSnapshot();
+  const counts = useModeCounts();
+  const total = MODE_ORDER.reduce((s, m) => s + counts[m], 0);
+  const present = MODE_ORDER.filter((m) => counts[m] > 0);
+  if (total === 0) return null;
 
-  if (!snapshot || snapshot.nodes.length === 0) {
-    return null;
-  }
-
-  const modes = new Set(snapshot.nodes.map((n) => n.mode));
-  const dominantMode = snapshot.nodes[0]?.mode ?? 'PEACE';
-  const color = modeColors[dominantMode];
+  let acc = 0;
+  const stops = present
+    .map((m) => {
+      const from = acc;
+      acc += (counts[m] / total) * 100;
+      return `${modeCss(m)} ${from}% ${acc}%`;
+    })
+    .join(', ');
 
   return (
     <Group
-      grow
-      style={{
-        backgroundColor: color,
-        padding: '0.5rem 1rem',
-        width: '100%',
-      }}
+      role="status"
+      aria-live="polite"
+      justify="center"
+      gap="lg"
+      h={24}
+      style={{ background: `linear-gradient(90deg, ${stops})`, transition: 'background 600ms' }}
     >
-      <Text size="sm" fw={700} style={{ color: 'white' }}>
-        {formatMode(dominantMode)}
-      </Text>
-      {modes.size > 1 && (
-        <Text size="xs" style={{ color: 'white', opacity: 0.8 }}>
-          {modes.size} zones
+      {present.map((m) => (
+        <Text
+          key={m}
+          size="xs"
+          fw={800}
+          c="white"
+          style={{ letterSpacing: 1, textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}
+        >
+          {formatMode(m)}
+          {present.length > 1 ? ` · ${Math.round((counts[m] / total) * 100)}%` : ''}
         </Text>
-      )}
+      ))}
     </Group>
   );
 }

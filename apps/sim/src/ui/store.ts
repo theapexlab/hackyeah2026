@@ -1,91 +1,122 @@
+import { DEFAULT_WORLD_CONFIG, type WorldConfig } from '@pomoc/core';
 import { create } from 'zustand';
 
 export type InspectorTab = 'inbox' | 'store' | 'log';
+export type Speed = 0.5 | 1 | 2 | 4;
+export const SPEEDS: readonly Speed[] = [0.5, 1, 2, 4];
+export const AUTHORITY = 'authority';
+
+export interface ConfigDraft {
+  seed: string;
+  width: number;
+  height: number;
+  mobiles: number;
+  routers: number;
+  gateways: number;
+  mobileRange: number;
+  routerRange: number;
+  gatewayRange: number;
+  unregisteredFraction: number;
+  mobility: boolean;
+  tickMs: number;
+}
+
+/**
+ * Demo preset. Core's DEFAULT_WORLD_CONFIG (40 phones, ranges 60/120/150) generates 40 islands and
+ * ~10 % reachability at seed 42, which defeats the demo; this preset yields one connected mesh.
+ */
+export const DEFAULT_DRAFT: ConfigDraft = {
+  seed: String(DEFAULT_WORLD_CONFIG.seed),
+  width: DEFAULT_WORLD_CONFIG.width,
+  height: DEFAULT_WORLD_CONFIG.height,
+  mobiles: 100,
+  routers: 30,
+  gateways: DEFAULT_WORLD_CONFIG.gateways,
+  mobileRange: 100,
+  routerRange: 160,
+  gatewayRange: 200,
+  unregisteredFraction: DEFAULT_WORLD_CONFIG.unregisteredFraction,
+  mobility: false,
+  tickMs: 250,
+};
+
+export function worldFromDraft(d: ConfigDraft): WorldConfig {
+  return {
+    ...DEFAULT_WORLD_CONFIG,
+    seed: /^\d+$/.test(d.seed) ? Number(d.seed) : d.seed,
+    width: d.width,
+    height: d.height,
+    mobiles: d.mobiles,
+    routers: d.routers,
+    gateways: d.gateways,
+    range: { mobile: d.mobileRange, router: d.routerRange, gateway: d.gatewayRange },
+    unregisteredFraction: d.unregisteredFraction,
+  };
+}
 
 interface UIStore {
-  selectedNodeId: string | 'authority' | null;
-  setSelectedNodeId: (id: string | 'authority' | null) => void;
-
+  /** A node id or `'authority'`. */
+  selectedNodeId: string | null;
+  lastNodeId: string | null;
   hoveredNodeId: string | null;
-  setHoveredNodeId: (id: string | null) => void;
-
   inspectorTab: InspectorTab;
-  setInspectorTab: (tab: InspectorTab) => void;
-
   highlightedMessageId: string | null;
-  setHighlightedMessageId: (id: string | null) => void;
-
   playing: boolean;
-  setPlaying: (playing: boolean) => void;
-
-  speed: 0.5 | 1 | 2 | 4;
-  setSpeed: (speed: 0.5 | 1 | 2 | 4) => void;
-
+  speed: Speed;
   showRanges: boolean;
-  setShowRanges: (show: boolean) => void;
-
   showTopologyPackets: boolean;
-  setShowTopologyPackets: (show: boolean) => void;
-
   navOpen: boolean;
-  setNavOpen: (open: boolean) => void;
-
-  configDraft: Record<string, any>;
-  setConfigDraft: (draft: Record<string, any>) => void;
-
   followLog: boolean;
+  shortcutsOpen: boolean;
+  authorityFlash: number;
+  configDraft: ConfigDraft;
+
+  select: (id: string | null) => void;
+  setHovered: (id: string | null) => void;
+  setInspectorTab: (tab: InspectorTab) => void;
+  setHighlightedMessageId: (id: string | null) => void;
+  setPlaying: (playing: boolean) => void;
+  setSpeed: (speed: Speed) => void;
+  setShowRanges: (show: boolean) => void;
+  setShowTopologyPackets: (show: boolean) => void;
+  setNavOpen: (open: boolean) => void;
   setFollowLog: (follow: boolean) => void;
-
-  shortcutsModalOpen: boolean;
-  setShortcutsModalOpen: (open: boolean) => void;
-
-  fitToWorld: (() => void) | null;
-  setFitToWorld: (fn: (() => void) | null) => void;
-
-  focusNode: (() => void) | null;
-  setFocusNode: (fn: (() => void) | null) => void;
+  setShortcutsOpen: (open: boolean) => void;
+  flashAuthority: () => void;
+  patchConfigDraft: (patch: Partial<ConfigDraft>) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
   selectedNodeId: null,
-  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
-
+  lastNodeId: null,
   hoveredNodeId: null,
-  setHoveredNodeId: (id) => set({ hoveredNodeId: id }),
-
   inspectorTab: 'inbox',
-  setInspectorTab: (tab) => set({ inspectorTab: tab }),
-
   highlightedMessageId: null,
-  setHighlightedMessageId: (id) => set({ highlightedMessageId: id }),
-
-  playing: false,
-  setPlaying: (playing) => set({ playing }),
-
+  playing: true,
   speed: 1,
-  setSpeed: (speed) => set({ speed }),
-
   showRanges: false,
-  setShowRanges: (show) => set({ showRanges: show }),
-
   showTopologyPackets: false,
-  setShowTopologyPackets: (show) => set({ showTopologyPackets: show }),
-
   navOpen: true,
-  setNavOpen: (open) => set({ navOpen: open }),
-
-  configDraft: {},
-  setConfigDraft: (draft) => set({ configDraft: draft }),
-
   followLog: true,
-  setFollowLog: (follow) => set({ followLog: follow }),
+  shortcutsOpen: false,
+  authorityFlash: 0,
+  configDraft: DEFAULT_DRAFT,
 
-  shortcutsModalOpen: false,
-  setShortcutsModalOpen: (open) => set({ shortcutsModalOpen: open }),
-
-  fitToWorld: null,
-  setFitToWorld: (fn) => set({ fitToWorld: fn }),
-
-  focusNode: null,
-  setFocusNode: (fn) => set({ focusNode: fn }),
+  select: (id) =>
+    set((s) => ({
+      selectedNodeId: id,
+      lastNodeId: id && id !== AUTHORITY ? id : s.lastNodeId,
+    })),
+  setHovered: (id) => set({ hoveredNodeId: id }),
+  setInspectorTab: (inspectorTab) => set({ inspectorTab }),
+  setHighlightedMessageId: (highlightedMessageId) => set({ highlightedMessageId }),
+  setPlaying: (playing) => set({ playing }),
+  setSpeed: (speed) => set({ speed }),
+  setShowRanges: (showRanges) => set({ showRanges }),
+  setShowTopologyPackets: (showTopologyPackets) => set({ showTopologyPackets }),
+  setNavOpen: (navOpen) => set({ navOpen }),
+  setFollowLog: (followLog) => set({ followLog }),
+  setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+  flashAuthority: () => set((s) => ({ authorityFlash: s.authorityFlash + 1 })),
+  patchConfigDraft: (patch) => set((s) => ({ configDraft: { ...s.configDraft, ...patch } })),
 }));

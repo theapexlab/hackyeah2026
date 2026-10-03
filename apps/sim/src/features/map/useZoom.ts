@@ -1,73 +1,136 @@
 import { select } from 'd3-selection';
 import { type ZoomBehavior, zoom, zoomIdentity } from 'd3-zoom';
-import { useEffect, useRef } from 'react';
+import { type RefObject, useCallback, useEffect, useRef } from 'react';
 import type { Transform } from '../../lib/geometry';
 
-export interface UseZoomOptions {
-  onTransform?: (transform: Transform) => void;
+interface UseZoomArgs {
+  containerRef: RefObject<HTMLDivElement | null>;
+  /** SVG `<g>` that receives the transform attribute. */
+  groupRef: RefObject<SVGGElement | null>;
+  /** SVG root that receives the --inv-k custom property (glyph counter-scale). */
+  svgRef: RefObject<SVGSVGElement | null>;
+  getWorld: () => { width: number; height: number };
+  getNodePos: (id: string) => { x: number; y: number } | undefined;
 }
 
-export function useZoom(containerRef: React.RefObject<HTMLElement>, options: UseZoomOptions = {}) {
+const PADDING = 0.92;
+
+/**
+ * d3-zoom on the container. Pan/zoom write `transformRef` (read by the canvas rAF loop) and the
+ * SVG group attribute directly; React state is never involved.
+ */
+export function useZoom({ containerRef, groupRef, svgRef, getWorld, getNodePos }: UseZoomArgs) {
   const transformRef = useRef<Transform>({ x: 0, y: 0, k: 1 });
-  const zoomRef = useRef<ZoomBehavior<Element, unknown> | null>(null);
+  const behaviorRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
+  const userMovedRef = useRef(false);
+  const getWorldRef = useRef(getWorld);
+  const getNodePosRef = useRef(getNodePos);
+  getWorldRef.current = getWorld;
+  getNodePosRef.current = getNodePos;
+
+  const apply = useCallback(
+    (t: Transform) => {
+      transformRef.current = t;
+      groupRef.current?.setAttribute('transform', `translate(${t.x} ${t.y}) scale(${t.k})`);
+      svgRef.current?.style.setProperty('--inv-k', String(1 / t.k));
+    },
+    [groupRef, svgRef],
+  );
+
+  const tweenRef = useRef(0);
+
+  const moveTo = useCallback(
+    (x: number, y: number, k: number, animate: boolean) => {
+      const el = containerRef.current;
+      const behavior = behaviorRef.current;
+      if (!el || !behavior) return;
+      cancelAnimationFrame(tweenRef.current);
+      const sel = select(el);
+      const to = zoomIdentity.translate(x, y).scale(k);
+      if (!animate) {
+        sel.call(behavior.transform, to);
+        return;
+      }
+      const from = transformRef.current;
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - t0) / 450);
+        const e = 1 - (1 - t) ** 3;
+        // Interpolate k geometrically so zoom feels uniform.
+        const kk = from.k * (to.k / from.k) ** e;
+        const xx = from.x + (to.x - from.x) * e;
+        const yy = from.y + (to.y - from.y) * e;
+        sel.call(behavior.transform, zoomIdentity.translate(xx, yy).scale(kk));
+        if (t < 1) tweenRef.current = requestAnimationFrame(step);
+      };
+      tweenRef.current = requestAnimationFrame(step);
+    },
+    [containerRef],
+  );
+
+  const fitToWorld = useCallback(
+    (animate = true) => {
+      const el = containerRef.current;
+      const { width, height } = getWorldRef.current();
+      if (!el || !width || !height || !el.clientWidth || !el.clientHeight) return;
+      const k = Math.min(el.clientWidth / width, el.clientHeight / height) * PADDING;
+      moveTo((el.clientWidth - width * k) / 2, (el.clientHeight - height * k) / 2, k, animate);
+      userMovedRef.current = false;
+    },
+    [containerRef, moveTo],
+  );
+
+  const focusNode = useCallback(
+    (id: string) => {
+      const el = containerRef.current;
+      const p = getNodePosRef.current(id);
+      if (!el || !p) return;
+      const k = 3;
+      moveTo(el.clientWidth / 2 - p.x * k, el.clientHeight / 2 - p.y * k, k, true);
+    },
+    [containerRef, moveTo],
+  );
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const behavior = zoom<HTMLDivElement, unknown>()
+      .scaleExtent([0.2, 12])
+      .filter((e: Event) => {
+        const target = e.target as Element | null;
+        if (e.type !== 'wheel' && target?.closest('[data-node], [data-no-zoom]')) return false;
+        if (e.type === 'dblclick') return false;
+        return (!(e as MouseEvent).ctrlKey || e.type === 'wheel') && !(e as MouseEvent).button;
+      })
+      .on('zoom', (e) => {
+        const { x, y, k } = e.transform;
+        if (e.sourceEvent) userMovedRef.current = true;
+        apply({ x, y, k });
+      });
+    behaviorRef.current = behavior;
+    const sel = select(el);
+    sel.call(behavior);
+    sel.on('dblclick.zoom', null);
 
-    const container = select<Element, unknown>(containerRef.current);
-    const zoomBehavior = zoom<Element, unknown>().on('zoom', (e: any) => {
-      const t = e.transform;
-      transformRef.current = { x: t.x, y: t.y, k: t.k };
-      options.onTransform?.(transformRef.current);
+    const onDblClick = (e: MouseEvent) => {
+      const id = (e.target as Element | null)?.closest('[data-node]')?.getAttribute('data-node');
+      if (id) focusNode(id);
+    };
+    el.addEventListener('dblclick', onDblClick);
+
+    const ro = new ResizeObserver(() => {
+      if (!userMovedRef.current) fitToWorld(false);
     });
-
-    try {
-      container.call(zoomBehavior);
-      zoomRef.current = zoomBehavior;
-    } catch (error) {
-      console.error('Failed to attach zoom behavior:', error);
-    }
+    ro.observe(el);
 
     return () => {
-      try {
-        container.on('.zoom', null);
-      } catch {
-        // Ignore cleanup errors
-      }
+      ro.disconnect();
+      el.removeEventListener('dblclick', onDblClick);
+      cancelAnimationFrame(tweenRef.current);
+      sel.on('.zoom', null);
+      behaviorRef.current = null;
     };
-  }, [options]);
-
-  const fitToWorld = (width: number, height: number, worldWidth: number, worldHeight: number) => {
-    if (!containerRef.current || !zoomRef.current) return;
-
-    const container = select<Element, unknown>(containerRef.current);
-    const scaleX = width / worldWidth;
-    const scaleY = height / worldHeight;
-    const k = Math.min(scaleX, scaleY) * 0.9;
-    const x = (width - worldWidth * k) / (2 * k);
-    const y = (height - worldHeight * k) / (2 * k);
-
-    const t = zoomIdentity.translate(x, y).scale(k);
-    container.call(zoomRef.current.transform, t);
-  };
-
-  const focusNode = (
-    nodeX: number,
-    nodeY: number,
-    width: number,
-    height: number,
-    padding = 100,
-  ) => {
-    if (!containerRef.current || !zoomRef.current) return;
-
-    const container = select<Element, unknown>(containerRef.current);
-    const k = Math.min(width, height) / (2 * padding);
-    const x = width / 2 - nodeX * k;
-    const y = height / 2 - nodeY * k;
-
-    const t = zoomIdentity.translate(x, y).scale(k);
-    container.call(zoomRef.current.transform, t);
-  };
+  }, [containerRef, apply, fitToWorld, focusNode]);
 
   return { transformRef, fitToWorld, focusNode };
 }

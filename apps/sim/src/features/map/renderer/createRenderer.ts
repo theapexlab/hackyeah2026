@@ -1,119 +1,203 @@
-import { Mode, type SimEngine, type Snapshot, type TransitEvent } from '@pomoc/core';
+import type { NodeView, SimEngine, SimEvent, Snapshot } from '@pomoc/core';
 import type { Transform } from '../../../lib/geometry';
-import { modeColors, resolvePalette } from '../../../theme/tokens';
-import { drawEdges, drawRangeCircles } from './drawEdges';
-import { drawBursts, drawPulses, drawRipples } from './drawFx';
-import { drawGrid, drawModeVignette } from './drawGrid';
+import type { Palette } from '../../../theme/tokens';
+import { buildEdgePaths, drawEdges, drawRangeCircles, type EdgePaths } from './drawEdges';
+import {
+  BURST_MS,
+  drawBursts,
+  drawHighlightedPath,
+  drawModeHalos,
+  drawPulses,
+  drawRegion,
+  drawRipples,
+} from './drawFx';
+import { buildStreets, drawGrid } from './drawGrid';
 import { ParticleSystem } from './particles';
 
-interface RendererOptions {
-  canvas: HTMLCanvasElement;
-  transformRef: React.MutableRefObject<Transform>;
-  engine: SimEngine;
-  lastTickAt: number;
-  tickIntervalMs: number;
-  speed: number;
+/** Everything the renderer reads each frame; supplied by the host so this module stays React-free. */
+export interface RenderView {
+  transform: Transform;
+  palette: Palette;
+  tickMs: number;
   showRanges: boolean;
   showTopologyPackets: boolean;
-  scheme: 'light' | 'dark';
+  selectedId: string | null;
+  hoveredId: string | null;
+  highlightedMessageId: string | null;
 }
 
-export function createRenderer(opts: RendererOptions) {
-  const { canvas, transformRef, engine, lastTickAt, tickIntervalMs, speed } = opts;
-  const ctx = canvas.getContext('2d', { alpha: false })!;
-  const particles = new ParticleSystem();
-  const palette = resolvePalette(opts.scheme);
-  let lastMode = 'PEACE';
-  let modeChangeTime = 0;
-  let latestSnapshot = engine.getSnapshot();
+export interface RendererStats {
+  pulses: number;
+  frameMs: number;
+}
 
-  // Resize canvas
-  function resizeCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvas.offsetWidth * dpr;
-    canvas.height = canvas.offsetHeight * dpr;
-    ctx.scale(dpr, dpr);
-  }
-  resizeCanvas();
-  const resizeObserver = new ResizeObserver(resizeCanvas);
+const FLASH_MS = 600;
+/** Routine flood bookkeeping; a burst per duplicate would drown the real rejections. */
+const QUIET_DROPS: ReadonlySet<string> = new Set(['DUPLICATE', 'HOP_LIMIT']);
+
+export function createRenderer(
+  canvas: HTMLCanvasElement,
+  engine: SimEngine,
+  getView: () => RenderView,
+) {
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) throw new Error('2d canvas unavailable');
+  const particles = new ParticleSystem();
+  const stats: RendererStats = { pulses: 0, frameMs: 0 };
+
+  let snapshot: Snapshot = engine.getSnapshot();
+  let nodeById = new Map<string, NodeView>();
+  let edgePaths: EdgePaths | null = null;
+  let streets: { key: string; path: Path2D } | null = null;
+  let eventsSeen = engine.getEventLog().length;
+  let flash: { at: number; mode: NodeView['mode'] } | null = null;
+  let trailMsg: string | null = null;
+  let trail: [string, string][] = [];
+  let raf = 0;
+  let dpr = 1;
+  let lastDiag = '';
+  let peakMs = 0;
+  let frames = 0;
+
+  const indexSnapshot = () => {
+    nodeById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+    edgePaths = null;
+  };
+  indexSnapshot();
+
+  const resize = () => {
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    canvas.height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+  };
+  resize();
+  const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(canvas);
 
-  function ingestTransits(transits: TransitEvent[]) {
-    const nodeMap = new Map(latestSnapshot.nodes.map((n) => [n.id, n]));
+  const handleEvent = (e: SimEvent, now: number) => {
+    switch (e.type) {
+      case 'DROPPED': {
+        const n = nodeById.get(e.at);
+        if (n && !QUIET_DROPS.has(e.reason)) particles.addBurst(n.x, n.y, now);
+        break;
+      }
+      case 'AUTHORITY_INJECTED': {
+        const n = nodeById.get(e.to);
+        if (n) particles.addRipple({ x: n.x, y: n.y, kind: 'inject', duration: 800 }, now);
+        break;
+      }
+      case 'MODE_CHANGED':
+        flash = { at: now, mode: e.to };
+        break;
+    }
+  };
 
-    for (const transit of transits) {
-      const from = nodeMap.get(transit.from);
-      const to = nodeMap.get(transit.to);
-      if (!from || !to) continue;
-
-      if (transit.via === 'authority-inject') {
-        particles.addRipple({ x: to.x, y: to.y });
-      } else if (transit.via === 'hop' || transit.via === 'store-flush') {
-        particles.addPulse({
-          from: { x: from.x, y: from.y },
-          to: { x: to.x, y: to.y },
-          class: transit.class,
-          born: Date.now(),
-        });
+  const onEngine = () => {
+    const now = performance.now();
+    const view = getView();
+    snapshot = engine.getSnapshot();
+    indexSnapshot();
+    particles.ingestTransits(snapshot.transits, now, view.showTopologyPackets);
+    for (const t of snapshot.transits) {
+      if (t.msgId === trailMsg && t.via === 'hop') trail.push([t.from, t.to]);
+      if (t.via === 'uplink') {
+        const n = nodeById.get(t.from);
+        if (n) particles.addRipple({ x: n.x, y: n.y, kind: 'uplink', cls: t.class }, now);
       }
     }
-  }
+    const log = engine.getEventLog();
+    if (log.length < eventsSeen) eventsSeen = 0;
+    for (let i = eventsSeen; i < log.length; i++) {
+      const e = log[i];
+      if (e) handleEvent(e, now);
+    }
+    eventsSeen = log.length;
+  };
+  const unsubscribe = engine.subscribe(onEngine);
 
-  function draw(snapshot: Snapshot) {
-    const width = canvas.offsetWidth;
-    const height = canvas.offsetHeight;
-    const transform = transformRef.current;
+  const draw = (now: number) => {
+    const t0 = performance.now();
+    const view = getView();
+    const { transform: tf, palette } = view;
+    const { width, height, seed } = snapshot.world;
 
-    // Background
-    ctx.fillStyle = opts.scheme === 'dark' ? '#1a1b1e' : '#fafafa';
-    ctx.fillRect(0, 0, width, height);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = palette.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr * tf.k, 0, 0, dpr * tf.k, dpr * tf.x, dpr * tf.y);
 
-    // Grid
-    drawGrid(ctx, width, height, transform, palette.grid);
+    const streetKey = `${seed}:${width}x${height}`;
+    if (streets?.key !== streetKey)
+      streets = { key: streetKey, path: buildStreets({ width, height, seed }) };
+    drawGrid(ctx, { width, height, seed }, streets.path, palette, tf.k);
 
-    // Edges
-    drawEdges(ctx, snapshot.edges, snapshot.nodes, transform, palette.edge);
+    for (const d of snapshot.declarations) {
+      if (d.region) drawRegion(ctx, d.region, palette.mode[d.level] ?? palette.mode.L2, tf.k);
+    }
+    drawModeHalos(ctx, snapshot.nodes, palette);
 
-    // Range circles
-    if (opts.showRanges) {
-      drawRangeCircles(ctx, snapshot.nodes, transform, palette.backhaul);
+    edgePaths ??= buildEdgePaths(snapshot.edges, nodeById);
+    drawEdges(ctx, edgePaths, palette, tf.k);
+
+    if (view.showRanges) {
+      const em = new Set([view.selectedId, view.hoveredId].filter((v): v is string => !!v));
+      drawRangeCircles(ctx, snapshot.nodes, palette, tf.k, em);
     }
 
-    // Particles
-    const now = Date.now();
-    particles.update(now);
-    drawPulses(ctx, particles.pulses, transform, now);
-    drawRipples(ctx, particles.ripples, transform, now);
-    drawBursts(ctx, particles.bursts, transform, now);
-
-    // Mode vignette
-    const node0 = snapshot.nodes.length > 0 ? snapshot.nodes[0] : null;
-    const mode = node0?.mode ?? 'PEACE';
-    const modeColor = modeColors[mode] || '#4dabf7';
-    if (mode !== lastMode) {
-      lastMode = mode;
-      modeChangeTime = Date.now();
+    if (view.highlightedMessageId !== trailMsg) {
+      trailMsg = view.highlightedMessageId;
+      trail = [];
     }
-    const vignetteIntensity = Math.max(0, 1 - (now - modeChangeTime) / 600) * 0.2;
-    drawModeVignette(ctx, width, height, modeColor, vignetteIntensity);
-  }
+    if (trailMsg) drawHighlightedPath(ctx, trail, nodeById, palette.cls.OFFICIAL_ALERT, tf.k);
 
-  function animate() {
-    draw(latestSnapshot);
-    requestAnimationFrame(animate);
-  }
+    for (const p of particles.prune(now, view.tickMs, BURST_MS)) {
+      const n = nodeById.get(p.toId);
+      if (n) particles.addRipple({ x: n.x, y: n.y, kind: 'arrive', cls: p.cls }, now);
+    }
+    drawPulses(
+      ctx,
+      particles.pulses,
+      nodeById,
+      palette,
+      now,
+      view.tickMs,
+      tf.k,
+      view.highlightedMessageId,
+    );
+    drawRipples(ctx, particles.ripples, palette, now, tf.k);
+    drawBursts(ctx, particles.bursts, palette, now, tf.k);
 
-  // Start animation loop
-  const raf = requestAnimationFrame(animate);
+    if (flash && now - flash.at < FLASH_MS) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = (1 - (now - flash.at) / FLASH_MS) * 0.16;
+      ctx.fillStyle = palette.mode[flash.mode];
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+    }
 
-  // Subscribe to engine updates
-  const unsubscribe = engine.subscribe(() => {
-    latestSnapshot = engine.getSnapshot();
-    ingestTransits(latestSnapshot.transits);
-  });
+    stats.pulses = particles.pulses.length;
+    stats.frameMs = performance.now() - t0;
+    peakMs = Math.max(peakMs, stats.frameMs);
+    if (++frames % 30 === 0) {
+      canvas.dataset.drawMsPeak = peakMs.toFixed(2);
+      peakMs = 0;
+    }
+    const diag = `${stats.pulses}|${particles.spawned.pulses}|${particles.spawned.ripples}|${particles.spawned.bursts}`;
+    if (diag !== lastDiag) {
+      lastDiag = diag;
+      canvas.dataset.pulses = String(stats.pulses);
+      canvas.dataset.spawned = JSON.stringify(particles.spawned);
+    }
+  };
+
+  const frame = (now: number) => {
+    draw(now);
+    raf = requestAnimationFrame(frame);
+  };
+  raf = requestAnimationFrame(frame);
 
   return {
-    ingestTransits,
+    stats,
     dispose: () => {
       cancelAnimationFrame(raf);
       resizeObserver.disconnect();

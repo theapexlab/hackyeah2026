@@ -1,17 +1,33 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import './styles.css';
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import App from './App';
+import { useSimStore } from './sim/store';
 import { createTheme } from './theme/theme';
+import { useUIStore } from './ui/store';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+const root = document.getElementById('root');
+if (!root) throw new Error('#root missing');
+
+createRoot(root).render(
+  <StrictMode>
     <MantineProvider defaultColorScheme="dark" theme={createTheme()}>
-      <Notifications />
+      <Notifications
+        position="top-center"
+        limit={3}
+        containerWidth={360}
+        styles={{
+          root: { top: 76, pointerEvents: 'none' },
+          notification: { pointerEvents: 'auto' },
+        }}
+      />
       <App />
     </MantineProvider>
-  </React.StrictMode>,
+  </StrictMode>,
 );
+
+if (import.meta.env.DEV) Object.assign(window, { __pomoc: { sim: useSimStore, ui: useUIStore } });

@@ -1,5 +1,6 @@
 import {
   Button,
+  Group,
   NumberInput,
   SegmentedControl,
   Select,
@@ -7,104 +8,150 @@ import {
   Text,
   Textarea,
 } from '@mantine/core';
-import { MODE_POLICIES, type MessageClass, type NodeDetail } from '@pomoc/core';
+import {
+  CREDENTIAL_ORIGINS,
+  canOriginate,
+  hopLimitFor,
+  type MessageClass,
+  MODE_LABELS,
+  MODE_POLICIES,
+  type NodeDetail,
+} from '@pomoc/core';
 import { useState } from 'react';
+import { formatClass } from '../../../lib/format';
 import { simCommands } from '../../../sim/commands';
-import { useSimSnapshot } from '../../../sim/selectors';
 
-interface MobileActionsProps {
-  node: NodeDetail;
-}
+type CheckIn = 'OK' | 'NEED_EVACUATION' | 'TRAPPED';
 
-export function MobileActions({ node }: MobileActionsProps) {
-  const snapshot = useSimSnapshot();
-  const [requestClass, setRequestClass] = useState('LEND');
-  const [requestText, setRequestText] = useState('Requesting supplies');
-  const [hopLimit, setHopLimit] = useState(3);
-  const [checkInStatus, setCheckInStatus] = useState<'OK' | 'NEED_EVACUATION' | 'TRAPPED'>('OK');
+export function MobileActions({ detail }: { detail: NodeDetail }) {
+  const policy = MODE_POLICIES[detail.mode];
+  const offLabel = `off in ${MODE_LABELS[detail.mode]}`;
+  const classes = CREDENTIAL_ORIGINS[detail.credentialKind];
+  const enabled = classes.filter((c) => policy.originClasses.includes(c));
 
-  const policy = MODE_POLICIES[snapshot?.nodes[0]?.mode ?? 'PEACE'];
-  const originClasses = policy.originClasses.map((cls) => ({
-    label: cls,
-    value: cls,
-  }));
+  const [picked, setPicked] = useState<MessageClass | null>(null);
+  const [text, setText] = useState('Need help nearby');
+  const [hop, setHop] = useState<number | null>(null);
+  const [price, setPrice] = useState<number | null>(null);
+  const [status, setStatus] = useState<CheckIn>('OK');
 
-  const handleSendRequest = () => {
-    simCommands.sendRequest(node.id, requestClass as MessageClass, {
-      kind: 'REQUEST',
-      text: requestText,
-    });
-  };
-
-  const handleCheckIn = () => {
-    simCommands.sendCheckIn(node.id, checkInStatus);
-  };
-
-  const handleAccept = () => {
-    if (snapshot) {
-      const openRequest = snapshot.transactions.find((tx) => tx.status === 'open');
-      if (openRequest) {
-        simCommands.accept(node.id, openRequest.requestId);
-      }
-    }
-  };
+  const cls = picked && enabled.includes(picked) ? picked : (enabled[0] ?? null);
+  const maxHop = cls ? hopLimitFor(policy, cls) : policy.hopLimit;
+  const checkInAllowed =
+    canOriginate(detail.credentialKind, 'CHECK_IN') && policy.originClasses.includes('CHECK_IN');
+  const open = detail.requestView.filter((r) => r.status === 'open');
 
   return (
     <Stack gap="md">
-      <div>
-        <Text fw={500} size="sm" mb="xs">
-          Send Request
+      <Stack gap="xs">
+        <Text fw={600} size="sm">
+          Send request
         </Text>
-        <Stack gap="sm">
-          <Select
-            label="Class"
-            data={originClasses}
-            value={requestClass}
-            onChange={(val) => setRequestClass(val || 'LEND')}
-          />
-          <Textarea
-            label="Message"
-            value={requestText}
-            onChange={(e) => setRequestText(e.target.value)}
-            placeholder="Request text..."
-            rows={3}
-          />
+        {classes.length === 0 && (
+          <Text size="xs" c="orange">
+            {detail.credentialKind === 'none' ? 'Unregistered' : detail.credentialKind} credential
+            cannot originate messages.
+          </Text>
+        )}
+        <Select
+          label="Class"
+          size="xs"
+          allowDeselect={false}
+          data={classes.map((c) => ({
+            value: c,
+            label: policy.originClasses.includes(c)
+              ? formatClass(c)
+              : `${formatClass(c)} (${offLabel})`,
+            disabled: !policy.originClasses.includes(c),
+          }))}
+          value={cls}
+          onChange={(v) => setPicked(v as MessageClass | null)}
+        />
+        <Textarea
+          label="Message"
+          size="xs"
+          autosize
+          minRows={2}
+          value={text}
+          onChange={(e) => setText(e.currentTarget.value)}
+        />
+        <NumberInput
+          label="Hop limit"
+          size="xs"
+          min={1}
+          max={Number.isFinite(maxHop) ? maxHop : undefined}
+          value={hop ?? policy.hopLimit}
+          onChange={(v) => setHop(typeof v === 'number' ? v : null)}
+        />
+        {policy.paymentsAllowed && (
           <NumberInput
-            label="Hop limit"
-            value={hopLimit}
-            onChange={(val) => setHopLimit(Number(val) || 3)}
+            label="Price (optional)"
+            size="xs"
+            min={0}
+            value={price ?? ''}
+            onChange={(v) => setPrice(typeof v === 'number' ? v : null)}
           />
-          <Button onClick={handleSendRequest} fullWidth>
-            Send Request
-          </Button>
-        </Stack>
-      </div>
-
-      <div>
-        <Text fw={500} size="sm" mb="xs">
-          Check In
-        </Text>
-        <Stack gap="sm">
-          <SegmentedControl
-            data={[
-              { label: "I'm OK", value: 'OK' },
-              { label: 'Need evacuation', value: 'NEED_EVACUATION' },
-              { label: 'Trapped', value: 'TRAPPED' },
-            ]}
-            value={checkInStatus}
-            onChange={(val) => setCheckInStatus(val as 'OK' | 'NEED_EVACUATION' | 'TRAPPED')}
-          />
-          <Button onClick={handleCheckIn} fullWidth>
-            Send Check In
-          </Button>
-        </Stack>
-      </div>
-
-      <div>
-        <Button onClick={handleAccept} fullWidth variant="light">
-          Accept Request
+        )}
+        <Button
+          size="xs"
+          disabled={!cls}
+          onClick={() =>
+            cls &&
+            simCommands.sendRequest(detail.id, cls, text, {
+              hopLimit: hop ?? undefined,
+              price: policy.paymentsAllowed ? (price ?? undefined) : undefined,
+            })
+          }
+        >
+          Send request
         </Button>
-      </div>
+      </Stack>
+
+      <Stack gap="xs">
+        <Text fw={600} size="sm">
+          Check in
+        </Text>
+        <SegmentedControl
+          aria-label="Check-in status"
+          size="xs"
+          fullWidth
+          value={status}
+          onChange={(v) => setStatus(v as CheckIn)}
+          data={[
+            { label: "I'm OK", value: 'OK' },
+            { label: 'Evacuate', value: 'NEED_EVACUATION' },
+            { label: 'Trapped', value: 'TRAPPED' },
+          ]}
+        />
+        <Button
+          size="xs"
+          variant="light"
+          disabled={!checkInAllowed}
+          onClick={() => simCommands.sendCheckIn(detail.id, status)}
+        >
+          {checkInAllowed ? 'Send check-in' : `Check-in ${offLabel}`}
+        </Button>
+      </Stack>
+
+      <Stack gap="xs">
+        <Text fw={600} size="sm">
+          Open requests seen here ({open.length})
+        </Text>
+        {open.slice(0, 8).map((r) => (
+          <Group key={r.msgId} justify="space-between" wrap="nowrap" gap="xs">
+            <Text size="xs" truncate>
+              {r.msgId} &middot; hop {r.hop}
+            </Text>
+            <Button
+              size="compact-xs"
+              aria-label={`Accept request ${r.msgId}`}
+              onClick={() => simCommands.accept(detail.id, r.msgId)}
+            >
+              Accept
+            </Button>
+          </Group>
+        ))}
+      </Stack>
     </Stack>
   );
 }

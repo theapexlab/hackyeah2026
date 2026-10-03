@@ -1,84 +1,53 @@
-import type { Transform } from '../../../lib/geometry';
+import { createPrng } from '@pomoc/core';
+import type { Palette } from '../../../theme/tokens';
+
+export interface WorldSize {
+  width: number;
+  height: number;
+  seed: number | string;
+}
+
+/** Procedural, seed-stable street grid as one Path2D in world coordinates. */
+export function buildStreets({ width, height, seed }: WorldSize): Path2D {
+  const rng = createPrng(`streets:${seed}`);
+  const path = new Path2D();
+  for (const [len, cross, vertical] of [
+    [width, height, true],
+    [height, width, false],
+  ] as const) {
+    for (let at = len * 0.04; at < len; at += rng.float(len * 0.05, len * 0.11)) {
+      let from = 0;
+      while (from < cross) {
+        const to = Math.min(cross, from + rng.float(cross * 0.25, cross * 0.7));
+        if (rng.float(0, 1) > 0.18) {
+          if (vertical) {
+            path.moveTo(at, from);
+            path.lineTo(at, to);
+          } else {
+            path.moveTo(from, at);
+            path.lineTo(to, at);
+          }
+        }
+        from = to;
+      }
+    }
+  }
+  return path;
+}
 
 export function drawGrid(
   ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  transform: Transform,
-  gridColor: string,
-  spacing = 100,
-) {
-  ctx.strokeStyle = gridColor;
-  ctx.lineWidth = 0.5;
-
-  const x0 = Math.floor(transform.x / spacing) * spacing;
-  const y0 = Math.floor(transform.y / spacing) * spacing;
-
-  // Vertical lines
-  for (let x = x0; x < transform.x + width / transform.k; x += spacing) {
-    const sx = (x - transform.x) * transform.k;
-    ctx.beginPath();
-    ctx.moveTo(sx, 0);
-    ctx.lineTo(sx, height);
-    ctx.stroke();
-  }
-
-  // Horizontal lines
-  for (let y = y0; y < transform.y + height / transform.k; y += spacing) {
-    const sy = (y - transform.y) * transform.k;
-    ctx.beginPath();
-    ctx.moveTo(0, sy);
-    ctx.lineTo(width, sy);
-    ctx.stroke();
-  }
-}
-
-export function drawModeVignette(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  color: string,
-  intensity = 0.3,
-) {
-  const gradient = ctx.createRadialGradient(
-    width / 2,
-    height / 2,
-    0,
-    width / 2,
-    height / 2,
-    Math.max(width, height),
-  );
-  gradient.addColorStop(0, 'transparent');
-  gradient.addColorStop(
-    1,
-    color +
-      Math.floor(intensity * 255)
-        .toString(16)
-        .padStart(2, '0'),
-  );
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-}
-
-export function drawRegionTint(
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  radius: number,
-  color: string,
-  transform: Transform,
-) {
-  const sx = (centerX - transform.x) * transform.k;
-  const sy = (centerY - transform.y) * transform.k;
-  const sr = radius * transform.k;
-
-  ctx.fillStyle = color + '33';
-  ctx.beginPath();
-  ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = color + '77';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  size: WorldSize,
+  streets: Path2D,
+  palette: Palette,
+  k: number,
+): void {
+  ctx.fillStyle = palette.world;
+  ctx.fillRect(0, 0, size.width, size.height);
+  ctx.strokeStyle = palette.street;
+  ctx.lineWidth = 1 / k;
+  ctx.stroke(streets);
+  ctx.strokeStyle = palette.street;
+  ctx.lineWidth = 2 / k;
+  ctx.strokeRect(0, 0, size.width, size.height);
 }

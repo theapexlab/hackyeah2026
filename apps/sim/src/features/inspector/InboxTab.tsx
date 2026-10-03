@@ -1,27 +1,20 @@
-import { ScrollArea, Stack, Text } from '@mantine/core';
-import { useNodeDetail } from '../../sim/selectors';
+import { Stack, Text } from '@mantine/core';
+import type { NodeDetail } from '@pomoc/core';
+import { withKeys } from '../../lib/keys';
 import { MessageCard } from './MessageCard';
 
-interface InboxTabProps {
-  nodeId: string;
-}
-
-export function InboxTab({ nodeId }: InboxTabProps) {
-  const detail = useNodeDetail(nodeId);
-
-  const inbox = (detail as any)?.inbox || [];
-
-  if (inbox.length === 0) {
-    return <Text c="dimmed">No messages in inbox</Text>;
-  }
-
+export function InboxTab({ detail }: { detail: NodeDetail }) {
+  if (detail.inbox.length === 0)
+    return (
+      <Text c="dimmed" size="sm">
+        Inbox is empty
+      </Text>
+    );
   return (
-    <ScrollArea style={{ height: 400 }}>
-      <Stack gap="md" p="md">
-        {inbox.map((msg: any) => (
-          <MessageCard key={msg.id} message={msg} />
-        ))}
-      </Stack>
-    </ScrollArea>
+    <Stack gap="xs">
+      {withKeys(detail.inbox.slice(0, 40), (m) => `${m.id}:${m.hop}`).map(({ key, item }) => (
+        <MessageCard key={key} message={item} />
+      ))}
+    </Stack>
   );
 }

@@ -1,32 +1,21 @@
-import { Code, ScrollArea, Stack, Text } from '@mantine/core';
-import { useNodeDetail } from '../../sim/selectors';
+import { Stack, Text } from '@mantine/core';
+import type { NodeDetail } from '@pomoc/core';
+import { withKeys } from '../../lib/keys';
 
-interface LogTabProps {
-  nodeId: string;
-}
-
-export function LogTab({ nodeId }: LogTabProps) {
-  const detail = useNodeDetail(nodeId);
-
-  if (!detail) {
-    return <Text c="dimmed">Loading...</Text>;
-  }
-
-  const logs = (detail as any).log || [];
-
-  if (logs.length === 0) {
-    return <Text c="dimmed">No events logged</Text>;
-  }
-
+export function LogTab({ detail }: { detail: NodeDetail }) {
+  if (detail.nodeLog.length === 0)
+    return (
+      <Text c="dimmed" size="sm">
+        No node log entries
+      </Text>
+    );
   return (
-    <ScrollArea style={{ height: 400 }}>
-      <Stack gap="xs">
-        {logs.map((entry: any, idx: number) => (
-          <Code key={idx} block style={{ fontSize: 11 }}>
-            {JSON.stringify(entry, null, 2)}
-          </Code>
-        ))}
-      </Stack>
-    </ScrollArea>
+    <Stack gap={2}>
+      {withKeys(detail.nodeLog.slice(-60), (l) => l).map(({ key, item }) => (
+        <Text key={key} size="xs" ff="monospace">
+          {item}
+        </Text>
+      ))}
+    </Stack>
   );
 }

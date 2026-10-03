@@ -1,62 +1,56 @@
-import { type NodeId, type NodeView, nodeIdFromString, Snapshot } from '@pomoc/core';
+import type { Mode, NodeDetail, NodeView, Snapshot } from '@pomoc/core';
+import { nodeIdFromString } from '@pomoc/core';
+import { useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSimStore } from './store';
 
-export const useSimSnapshot = () => {
-  return useSimStore((s) => s.snapshot);
-};
+// Stable fallbacks: a selector returning a fresh `[]` each call breaks useSyncExternalStore.
+const NO_NODES: NodeView[] = [];
+const NO_EVENTS: Snapshot['recentEvents'] = [];
 
-export const useEngine = () => {
-  return useSimStore((s) => s.engine);
-};
+export const useSimNodes = () => useSimStore((s) => s.snapshot?.nodes ?? NO_NODES);
+export const useSimMetrics = () => useSimStore((s) => s.snapshot?.metrics);
+export const useSimTick = () => useSimStore((s) => s.snapshot?.tick ?? 0);
+export const useSimRecentEvents = () => useSimStore((s) => s.snapshot?.recentEvents ?? NO_EVENTS);
+export const useSimDeclarations = () => useSimStore((s) => s.snapshot?.declarations);
+export const useSimUplinks = () => useSimStore((s) => s.snapshot?.authority.received);
+export const useCellsUp = () => useSimStore((s) => s.snapshot?.world.cellsUp ?? true);
+export const useGridUp = () => useSimStore((s) => s.snapshot?.world.gridUp ?? true);
 
-export const useLastTickAt = () => {
-  return useSimStore((s) => s.lastTickAt);
-};
+export const useWorldSize = () =>
+  useSimStore(
+    useShallow((s) => ({
+      width: s.snapshot?.world.width ?? 0,
+      height: s.snapshot?.world.height ?? 0,
+    })),
+  );
 
-export const useTickIntervalMs = () => {
-  return useSimStore((s) => s.tickIntervalMs);
-};
+export const useNodeView = (id: string | null): NodeView | undefined =>
+  useSimStore((s) => (id ? s.snapshot?.nodes.find((n) => n.id === id) : undefined));
 
-export const useSimNodes = () => {
-  return useSimStore((s) => s.snapshot?.nodes ?? []);
-};
+export type ModeCounts = Record<Mode, number>;
 
-export const useSimEdges = () => {
-  return useSimStore((s) => s.snapshot?.edges ?? []);
-};
+/** Alive nodes per mode; shallow-compared so ticks without mode changes do not re-render. */
+export const useModeCounts = (): ModeCounts =>
+  useSimStore(
+    useShallow((s) => {
+      const counts: ModeCounts = { PEACE: 0, L1: 0, L2: 0, L3: 0 };
+      for (const n of s.snapshot?.nodes ?? NO_NODES) if (n.alive) counts[n.mode]++;
+      return counts;
+    }),
+  );
 
-export const useSimMessages = () => {
-  return useSimStore((s) => s.snapshot?.messages ?? []);
-};
-
-export const useSimMetrics = () => {
-  return useSimStore((s) => s.snapshot?.metrics);
-};
-
-export const useSimTick = () => {
-  return useSimStore((s) => s.snapshot?.tick ?? 0);
-};
-
-export const useSimWorld = () => {
-  return useSimStore((s) => s.snapshot?.world);
-};
-
-export const useSimTransits = () => {
-  return useSimStore((s) => s.snapshot?.transits ?? []);
-};
-
-export const useSimRecentEvents = () => {
-  return useSimStore((s) => s.snapshot?.recentEvents ?? []);
-};
-
-export const useNodeDetail = (nodeId: string | NodeId | null) => {
+/** Inspector detail, recomputed once per tick (not part of the snapshot). */
+export function useNodeDetail(id: string | null): NodeDetail | null {
   const engine = useSimStore((s) => s.engine);
-  if (!engine || !nodeId) return null;
-  const id = typeof nodeId === 'string' ? nodeIdFromString(nodeId) : nodeId;
-  return engine.getNodeDetail(id);
-};
-
-export const useNodeById = (nodeId: string | NodeId): NodeView | undefined => {
-  const nodes = useSimNodes();
-  return nodes.find((n) => n.id === nodeId);
-};
+  const tick = useSimStore((s) => s.snapshot?.tick ?? 0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tick is the refresh trigger
+  return useMemo(() => {
+    if (!engine || !id) return null;
+    try {
+      return engine.getNodeDetail(nodeIdFromString(id));
+    } catch {
+      return null;
+    }
+  }, [engine, id, tick]);
+}

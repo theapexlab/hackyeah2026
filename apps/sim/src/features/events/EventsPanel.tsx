@@ -1,43 +1,39 @@
-import { Button, Divider, Group, Stack, Text } from '@mantine/core';
+import { Badge, Button, Group, Kbd, Stack, Text, Tooltip } from '@mantine/core';
 import { simEvents } from '../../sim/events';
+import { useCellsUp, useGridUp } from '../../sim/selectors';
 
 export function EventsPanel() {
+  const cellsUp = useCellsUp();
+  const gridUp = useGridUp();
+  const state: Record<string, boolean> = { c: cellsUp, g: gridUp };
+
   return (
-    <Stack gap="md" p="md">
-      <div>
-        <h3 style={{ margin: '0 0 1rem 0' }}>Events</h3>
-
-        <Stack gap="xs">
-          {simEvents.map((event) => (
-            <Button
-              key={event.key}
-              onClick={() => event.run()}
-              variant="light"
-              fullWidth
-              justify="space-between"
-            >
-              <Group gap="xs" style={{ flex: 1 }}>
-                <Text size="sm">{event.label}</Text>
-                <Text size="xs" c="dimmed">
-                  {event.hint}
-                </Text>
-              </Group>
-              <kbd
-                style={{
-                  padding: '2px 6px',
-                  backgroundColor: '#2c2e31',
-                  borderRadius: 4,
-                  fontSize: 11,
-                }}
-              >
-                {event.key}
-              </kbd>
-            </Button>
-          ))}
-        </Stack>
-      </div>
-
-      <Divider />
+    <Stack gap={6} p="sm">
+      <Text fw={700} size="sm">
+        Events
+      </Text>
+      {simEvents.map((e) => (
+        <Tooltip key={e.key} label={e.hint} position="right" openDelay={400}>
+          <Button
+            variant="light"
+            size="xs"
+            justify="space-between"
+            fullWidth
+            aria-label={`${e.label}, key ${e.key}`}
+            onClick={e.run}
+            rightSection={<Kbd size="xs">{e.key}</Kbd>}
+          >
+            <Group gap={6} wrap="nowrap">
+              {e.label}
+              {e.key in state && (
+                <Badge size="xs" color={state[e.key] ? 'green' : 'red'} variant="filled">
+                  {state[e.key] ? 'on' : 'off'}
+                </Badge>
+              )}
+            </Group>
+          </Button>
+        </Tooltip>
+      ))}
     </Stack>
   );
 }

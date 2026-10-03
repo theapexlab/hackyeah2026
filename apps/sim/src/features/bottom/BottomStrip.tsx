@@ -1,17 +1,17 @@
-import { Divider, Group } from '@mantine/core';
+import { Box, Divider } from '@mantine/core';
 import { EventLog } from './EventLog';
 import { MetricsPanel } from './MetricsPanel';
 
 export function BottomStrip() {
   return (
-    <Group grow h="100%" gap={0} wrap="nowrap">
-      <div style={{ flex: '60%', overflow: 'hidden' }}>
+    <Box style={{ display: 'flex', height: '100%', minHeight: 0 }}>
+      <Box style={{ flex: '0 0 60%', minWidth: 0, minHeight: 0 }}>
         <EventLog />
-      </div>
+      </Box>
       <Divider orientation="vertical" />
-      <div style={{ flex: '40%', overflow: 'hidden' }}>
+      <Box style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
         <MetricsPanel />
-      </div>
-    </Group>
+      </Box>
+    </Box>
   );
 }

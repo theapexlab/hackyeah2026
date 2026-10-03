@@ -2,62 +2,37 @@ import { ActionIcon, Group, SegmentedControl, Text, Tooltip } from '@mantine/cor
 import { IconPlayerPause, IconPlayerPlay, IconPlayerSkipForward } from '@tabler/icons-react';
 import { playback } from '../../sim/playback';
 import { useSimTick } from '../../sim/selectors';
-import { useUIStore } from '../../ui/store';
+import { SPEEDS, useUIStore } from '../../ui/store';
 
 export function PlaybackControls() {
   const playing = useUIStore((s) => s.playing);
-  const setPlaying = useUIStore((s) => s.setPlaying);
   const speed = useUIStore((s) => s.speed);
-  const setSpeed = useUIStore((s) => s.setSpeed);
   const tick = useSimTick();
 
-  const handlePlayPause = () => {
-    const newState = !playing;
-    setPlaying(newState);
-    if (newState) {
-      playback.start();
-    } else {
-      playback.stop();
-    }
-  };
-
-  const handleStep = () => {
-    playback.step();
-  };
-
-  const handleSpeedChange = (value: string) => {
-    const newSpeed = parseFloat(value) as any;
-    setSpeed(newSpeed);
-    playback.setSpeed(newSpeed);
-  };
-
   return (
-    <Group gap="xs">
-      <Tooltip label={playing ? 'Pause' : 'Play'}>
-        <ActionIcon onClick={handlePlayPause} variant={playing ? 'filled' : 'light'}>
+    <Group gap="xs" wrap="nowrap">
+      <Tooltip label={playing ? 'Pause (space)' : 'Play (space)'}>
+        <ActionIcon
+          aria-label={playing ? 'Pause' : 'Play'}
+          variant={playing ? 'filled' : 'default'}
+          onClick={playback.toggle}
+        >
           {playing ? <IconPlayerPause size={16} /> : <IconPlayerPlay size={16} />}
         </ActionIcon>
       </Tooltip>
-
-      <Tooltip label="Step once">
-        <ActionIcon onClick={handleStep} variant="light">
+      <Tooltip label="Step one tick (.)">
+        <ActionIcon aria-label="Step one tick" variant="default" onClick={playback.step}>
           <IconPlayerSkipForward size={16} />
         </ActionIcon>
       </Tooltip>
-
       <SegmentedControl
-        value={speed.toString()}
-        onChange={handleSpeedChange}
-        data={[
-          { label: '0.5x', value: '0.5' },
-          { label: '1x', value: '1' },
-          { label: '2x', value: '2' },
-          { label: '4x', value: '4' },
-        ]}
+        aria-label="Playback speed"
         size="xs"
+        value={String(speed)}
+        onChange={(v) => useUIStore.getState().setSpeed(Number(v) as (typeof SPEEDS)[number])}
+        data={SPEEDS.map((s) => ({ label: `${s}x`, value: String(s) }))}
       />
-
-      <Text size="sm" fw={500} style={{ minWidth: 60 }}>
+      <Text size="sm" fw={600} ff="monospace" miw={64} aria-label="Tick counter">
         T{tick}
       </Text>
     </Group>

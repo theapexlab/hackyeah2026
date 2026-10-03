@@ -1,96 +1,107 @@
-import { Badge, Tooltip } from '@mantine/core';
-import type { NodeView } from '@pomoc/core';
-import { IconAntenna, IconDeviceMobile, IconWifi } from '@tabler/icons-react';
-import { memo } from 'react';
+import { Tooltip } from '@mantine/core';
+import type { NodeKind, NodeView } from '@pomoc/core';
+import {
+  IconAntenna,
+  IconDeviceMobile,
+  IconPlugOff,
+  type IconProps,
+  IconWifi,
+} from '@tabler/icons-react';
+import { type ComponentType, memo } from 'react';
 import { formatNodeId } from '../../lib/format';
-import { modeColors } from '../../theme/tokens';
-import { useUIStore } from '../../ui/store';
+import { modeCss } from '../../theme/tokens';
 
-interface NodeGlyphProps {
-  node: NodeView;
-  transform: {
-    x: number;
-    y: number;
-    k: number;
-  };
-  onClick: () => void;
-  onHover: () => void;
-  onLeave: () => void;
-  isSelected: boolean;
-  isHovered: boolean;
-}
-
-const IconMap: Record<string, any> = {
+const ICONS: Record<NodeKind, ComponentType<IconProps>> = {
   mobile: IconDeviceMobile,
   router: IconWifi,
   gateway: IconAntenna,
 };
 
+interface NodeGlyphProps {
+  node: NodeView;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onHover: (id: string | null) => void;
+  onDragStart: (id: string, e: React.MouseEvent) => void;
+}
+
+const sameGlyph = (a: NodeGlyphProps, b: NodeGlyphProps): boolean =>
+  a.selected === b.selected &&
+  a.onSelect === b.onSelect &&
+  a.onHover === b.onHover &&
+  a.onDragStart === b.onDragStart &&
+  a.node.id === b.node.id &&
+  a.node.x === b.node.x &&
+  a.node.y === b.node.y &&
+  a.node.alive === b.node.alive &&
+  a.node.mode === b.node.mode &&
+  a.node.hasBackhaul === b.node.hasBackhaul &&
+  a.node.storeSize === b.node.storeSize &&
+  a.node.credentialKind === b.node.credentialKind;
+
 export const NodeGlyph = memo(function NodeGlyph({
   node,
-  transform,
-  onClick,
+  selected,
+  onSelect,
   onHover,
-  onLeave,
-  isSelected,
-  isHovered,
+  onDragStart,
 }: NodeGlyphProps) {
-  const x = (node.x - transform.x) * transform.k;
-  const y = (node.y - transform.y) * transform.k;
-  const scale = isHovered ? 1.15 : 1;
-
-  const Icon = IconMap[node.kind] || IconDeviceMobile;
-  const modeColor = modeColors[node.mode];
-
+  const Icon = ICONS[node.kind];
+  const label = `${formatNodeId(node.id)}${node.alive ? '' : ' (powered off)'}`;
   return (
-    <Tooltip label={formatNodeId(node.id)} position="top">
+    <Tooltip label={label} position="top" openDelay={120} withinPortal>
+      {/* biome-ignore lint/a11y/useSemanticElements: SVG <g> cannot be a <button> */}
       <g
-        transform={`translate(${x}, ${y}) scale(${scale})`}
-        style={{ cursor: 'pointer' }}
+        className="node-glyph"
         data-node={node.id}
-        onClick={onClick}
-        onMouseEnter={onHover}
-        onMouseLeave={onLeave}
+        role="button"
+        tabIndex={0}
+        aria-label={`${label}, mode ${node.mode}`}
+        style={{
+          transform: `translate(${node.x}px, ${node.y}px) scale(var(--inv-k, 1))`,
+          pointerEvents: 'all',
+        }}
+        onMouseDown={(e) => onDragStart(node.id, e)}
+        onClick={() => onSelect(node.id)}
+        onKeyDown={(e) => (e.key === 'Enter' ? onSelect(node.id) : undefined)}
+        onMouseEnter={() => onHover(node.id)}
+        onMouseLeave={() => onHover(null)}
       >
-        {/* Backhaul ring */}
-        {node.hasBackhaul && (
-          <circle r={18} fill="none" stroke="#51cf66" strokeWidth="2" opacity={0.6} />
+        <circle className="node-hit" r={16} fill="transparent" />
+        <g className="node-body" opacity={node.alive ? 1 : 0.35}>
+          {node.hasBackhaul && (
+            <circle r={15.5} fill="none" stroke="var(--mantine-color-green-5)" strokeWidth={2} />
+          )}
+          <circle
+            r={11}
+            fill="var(--mantine-color-body)"
+            strokeWidth={2.5}
+            strokeDasharray={node.credentialKind === 'none' ? '4 3' : undefined}
+            style={{ stroke: modeCss(node.mode) }}
+          />
+          <Icon x={-7} y={-7} size={14} stroke={2} color="var(--mantine-color-text)" />
+        </g>
+        {!node.alive && (
+          <IconPlugOff x={-15} y={4} size={10} stroke={2.4} color="var(--mantine-color-red-5)" />
         )}
-
-        {/* Mode ring */}
-        <circle
-          r={14}
-          fill="none"
-          stroke={modeColor}
-          strokeWidth={2}
-          style={{
-            strokeDasharray: node.credentialKind === 'none' ? '4,4' : 'none',
-            opacity: node.alive ? 1 : 0.35,
-          }}
-        />
-
-        {/* Icon */}
-        <foreignObject x={-8} y={-8} width={16} height={16}>
-          <Icon size={16} color={node.alive ? 'white' : 'gray'} style={{ width: 16, height: 16 }} />
-        </foreignObject>
-
-        {/* Store badge */}
         {node.storeSize > 0 && (
-          <g transform="translate(8, -8)">
-            <circle r={6} fill="#ffd43b" />
-            <text x={0} y={3} textAnchor="middle" fontSize="8" fill="black" fontWeight="bold">
+          <g className="store-badge" transform="translate(10 -10)">
+            <circle r={6.5} fill="var(--mantine-color-yellow-5)" />
+            <text y={3} textAnchor="middle" fontSize={9} fontWeight={700} fill="#000">
               {node.storeSize}
             </text>
           </g>
         )}
-
-        {/* Selection ring */}
-        {isSelected && (
-          <circle r={20} fill="none" stroke="white" strokeWidth="2" opacity={0.8}>
-            <animate attributeName="r" values="20;24;20" dur="1.5s" repeatCount="indefinite" />
-          </circle>
+        {selected && (
+          <circle
+            className="sel-ring"
+            r={19}
+            fill="none"
+            stroke="var(--mantine-color-text)"
+            strokeWidth={2}
+          />
         )}
       </g>
     </Tooltip>
   );
-});
+}, sameGlyph);
