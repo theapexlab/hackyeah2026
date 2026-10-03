@@ -1,11 +1,17 @@
 import { Container, Text, Title } from '@mantine/core';
-import { CORE_VERSION } from '@pomoc/core';
+import { createEngine, DEFAULT_WORLD_CONFIG } from '@pomoc/core';
+
+const engine = createEngine(DEFAULT_WORLD_CONFIG);
 
 export function App() {
+  const snapshot = engine.getSnapshot();
   return (
     <Container py="xl">
       <Title order={2}>Pomóc simulation</Title>
-      <Text c="dimmed">core {CORE_VERSION} — scaffold</Text>
+      <Text c="dimmed">
+        engine stub · tick {snapshot.tick} · seed {snapshot.world.seed} · {snapshot.nodes.length}{' '}
+        nodes
+      </Text>
     </Container>
   );
 }
