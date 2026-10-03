@@ -1,26 +1,27 @@
 # Non-functional requirements
 
 Same conventions as the functional list: MoSCoW priority, **Sim** column for what the
-hackathon simulation demonstrates (D / P / –).
+hackathon simulation demonstrates (D / P / –). Cryptography is standard and not simulated;
+the simulation is about mesh behaviour.
 
 ## 1. Security
 
 | ID         | Requirement                                                                                                                                                                                                                      | Priority | Sim |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --- |
-| NFR-SEC-01 | All protocol messages are signed. Unsigned or unverifiable messages are dropped at the first hop and never forwarded.                                                                                                            | M        | D   |
-| NFR-SEC-02 | Verification requires only material already on the device (Authority root keys, the message's own certificate chain). No verification step depends on network access. Obtaining a new credential is the only operation that needs a path to the issuer. | M | D |
+| NFR-SEC-01 | All protocol messages are signed. Unsigned or unverifiable messages are dropped at the first hop and never forwarded.                                                                                                            | M        | –   |
+| NFR-SEC-02 | Verification requires only material already on the device (Authority root keys, the message's own certificate chain). No verification step depends on network access. Obtaining a new credential is the only operation that needs a path to the issuer. | M | – |
 | NFR-SEC-03 | Issued private keys are stored in hardware-backed storage where the platform provides it (Android Keystore / StrongBox, iOS Secure Enclave) and are not exportable after import. Authority-side key generation and wrapping happen only inside HSMs, with m-of-n operator control, and the Authority copy is destroyed after delivery confirmation. | M | – |
 | NFR-SEC-04 | Separate Authority keys for certificate issuance, mode declarations and official alerts, so compromise of one does not grant the others. Root keys are kept offline.                                                             | M        | P   |
-| NFR-SEC-05 | Replay protection: every message carries a unique id, a timestamp and the signer's sequence number; nodes reject ids seen before and timestamps outside a tolerance window.                                                      | M        | D   |
-| NFR-SEC-06 | Flooding resistance: per-certificate rate limits enforced by receivers; relay certificates have stricter limits than citizen certificates; LIFE_CRITICAL has the lowest allowed rate to make it expensive to abuse.              | M        | D   |
-| NFR-SEC-07 | Sybil resistance comes from issuance: the Authority issues one key pair per verified person, and issuance is published to the transparency log so duplicates are detectable. Relay-only devices without a certificate cannot inject anything other than topology gossip, and their gossip is weighted lower in topology assembly. | M | P |
+| NFR-SEC-05 | Replay protection: every message carries a unique id, a timestamp and the signer's sequence number; nodes reject ids seen before, and the first node that admits a message into the mesh rejects timestamps more than 5 minutes from its own clock. Once admitted, de-duplication and TTL govern, so a message carried by a data mule is not dropped for arriving late. | M        | D   |
+| NFR-SEC-06 | Flooding resistance: every node keeps an in-memory token bucket per sender, keyed by the sender's certificate pseudonym, and drops or deprioritises that sender's messages when the bucket is exhausted; buckets are local to the node, share no state and reset on restart. Relay certificates have stricter limits than citizen certificates; LIFE_CRITICAL has the lowest allowed rate to make it expensive to abuse. | M | D |
+| NFR-SEC-07 | Sybil resistance comes from issuance: the Authority issues one key pair per verified person. Relay-only devices without a certificate cannot inject anything other than topology gossip, and their gossip is weighted lower in topology assembly. | M | P |
 | NFR-SEC-08 | The relay component on routers is isolated from the customer's LAN (separate network namespace / VLAN) and cannot read or modify household traffic.                                                                              | M        | –   |
 | NFR-SEC-09 | The emergency SSID is open by necessity; the captive portal is served over a locally self-signed TLS with a clear warning that the network is unencrypted.                                                                       | S        | –   |
 | NFR-SEC-10 | Forcing emergency mode (e.g. by cell jamming) must not grant any capability unavailable in peace mode. Emergency mode is strictly a subset plus different limits.                                                                | M        | D   |
 | NFR-SEC-11 | Mesh traffic originating from captive portals is bounded by design: at most one PORTAL_SUMMARY per router per minute, regardless of client count. An attacker at a portal can distort one router's counters, not load the mesh. | M | D |
-| NFR-SEC-12 | At L3 Security no unauthenticated input enters the mesh and no citizen-originated free-form information propagates; only Authority-signed information does. | M | D |
+| NFR-SEC-12 | At L3 Security no unauthenticated input enters the mesh and no citizen-originated free-form information propagates in a form peers can read; only Authority-signed information and sealed CASUALTY_REPORTs (encrypted to the Authority, forwarded opaque by relays) do. | M | D |
 | NFR-SEC-13 | At L3 Security phones do not emit topology gossip, so the mesh does not reveal the distribution of people; only routers at known locations gossip. | M | D |
-| NFR-SEC-14 | Private keys are delivered only wrapped to the target device enrollment key; gateways and mesh hops never see them in clear. Authority key escrow, where required by law, uses a separate k-of-n split-knowledge vault and every release is logged to the transparency log. | M | P |
+| NFR-SEC-14 | Private keys are delivered only wrapped to the target device enrollment key; gateways and mesh hops never see them in clear. Authority key escrow, where required by law, uses a separate k-of-n split-knowledge vault. | M | – |
 
 ## 2. Privacy
 
@@ -64,7 +65,7 @@ hackathon simulation demonstrates (D / P / –).
 | ID         | Requirement                                                                                                                                                       | Priority | Sim |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --- |
 | NFR-INT-01 | The message format, certificate profile and forwarding rules are a published open specification. Anyone may implement a compatible node.                          | M        | –   |
-| NFR-INT-02 | The router relay component and the phone protocol library are open source, reproducibly built, and the deployed hashes are published in the transparency log.     | M        | –   |
+| NFR-INT-02 | The router relay component and the phone protocol library are open source and reproducibly built.                                                                | M        | –   |
 | NFR-INT-03 | Transports are pluggable: BLE, Wi-Fi Aware, Wi-Fi Direct, 802.11s, LAN, internet, and future direct-to-device satellite behave identically to the protocol layer. | M        | D   |
 | NFR-INT-04 | Identity integrates with the national identity wallet and the EUDI wallet standard rather than running its own enrolment.                                         | M        | –   |
 | NFR-INT-05 | Official alerts use the Common Alerting Protocol (CAP) payload so existing alert origination tools (e.g. Alert RCB) can feed the mesh.                            | S        | –   |
@@ -99,7 +100,7 @@ hackathon simulation demonstrates (D / P / –).
 | NFR-OPS-01 | Router relay firmware updates go through the ISP's existing update pipeline and can be rolled back.                                                         | M        | –   |
 | NFR-OPS-02 | The Authority can run a scheduled nationwide drill: a declaration flagged as a drill that exercises mode switching without restricting peacetime functions. | S        | P   |
 | NFR-OPS-03 | Peacetime topology data gives operators a continuous coverage health indicator per district with alerting on degradation.                                   | S        | D   |
-| NFR-OPS-04 | All Authority actions are auditable; the transparency log is independently mirrorable.                                                                      | M        | –   |
+| NFR-OPS-04 | All Authority actions are auditable.                                                                                                                        | M        | –   |
 
 ## 9. Simulation quality (hackathon deliverable)
 
@@ -108,4 +109,4 @@ hackathon simulation demonstrates (D / P / –).
 | NFR-SIM-01 | Runs in a current desktop browser with no installation, from a static host, and works offline once loaded.                                         | M        | D   |
 | NFR-SIM-02 | The visual design follows one consistent system (typography, colour tokens for modes and message classes, light and dark) suitable for projection. | M        | D   |
 | NFR-SIM-03 | Every scenario step is reachable by a single key or button so the presenter never fights the tool on stage.                                        | M        | D   |
-| NFR-SIM-04 | Protocol module has unit tests for forwarding, TTL, hop limit, de-duplication, priority ordering, mode switching and signature rejection.          | S        | D   |
+| NFR-SIM-04 | Protocol module has unit tests for forwarding, TTL, hop limit, de-duplication, priority ordering and mode switching.                               | S        | D   |

@@ -12,7 +12,7 @@ sequenceDiagram
   P->>A: enrollment public key + signed attributes
   A->>A: HSM generates key pair, signs citizen certificate (pseudonym, 30 days, classes)
   A-->>P: private key wrapped to enrollment key + citizen certificate
-  A->>A: destroy private key copy, publish issuance to transparency log
+  A->>A: destroy private key copy
   P->>P: import key into secure element
   Note over P,A: Renewal, no internet: request forwarded by mesh to a gateway, receipt returned along path
   Note over P,N: Any later time, any mode, no network needed

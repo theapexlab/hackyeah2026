@@ -44,9 +44,10 @@ ordinary Tuesday and the day the network goes dark.
 
 Nothing of the production system is built at the hackathon. The deliverable is an
 **interactive simulation** that shows the protocol and both operating modes on a city-scale
-graph (routers as static nodes, phones as mobile nodes), including mode switching, signature
-verification, hop limits, store-and-forward via moving people, and coverage analysis for
-decision makers.
+graph (routers as static nodes, phones as mobile nodes), including mode switching, controlled
+flooding with hop limits, TTL and de-duplication, store-and-forward via moving people, and
+coverage analysis for decision makers. Cryptography is standard and not simulated; the
+simulation is about mesh behaviour.
 
 ## Documents
 

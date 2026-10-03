@@ -1,6 +1,6 @@
 <!-- layout: title -->
 <!-- event: HackYeah 2026 · Open Task: Smart City -->
-<!-- team: Team: ______ · Members: ______ -->
+<!-- team: Apexlab · Members: Vargha Csongor Csaba · Magyar Dániel · Fábi Tamás -->
 # Pomóc
 
 The network that is already there.
@@ -83,6 +83,7 @@ Matched by Marek, 2 hops away, in 4 minutes.
 | Cause | cell outage, cable cut | flood, storm, blackout | terror, war, hybrid attack |
 | Entered by | automatic or declaration | declaration only | declaration only |
 | Router portal | read + check-in | read + check-in + request | **read only** |
+| Citizen requests | life-critical, safety, "I am OK" | life-critical, safety, "I am OK" | + sealed casualty report to the authorities |
 | Citizen info | on | on | **off** (rumour control) |
 | Reach | 10 hops | 15 hops | 6 hops, phones go quiet |
 
@@ -104,10 +105,10 @@ Jamming the cells can force L1 at most. Everything above it needs a signature.
 <!-- style: pills -->
 ## A simulation of the protocol on a city graph
 
-Kraków district, static router layer plus mobile phone layer. Real ed25519 signatures. Deterministic, playable step by step:
+Kraków district, static router layer plus mobile phone layer. Deterministic, playable step by step:
 
 - 1 peace request + match
-- 2 forged request rejected
+- 2 flooding: hop limit, TTL, dedup
 - 3 cells down → L1, router backbone
 - 4 power down → phone-only, store-and-forward
 - 5 L2 vs L3 side by side
@@ -115,12 +116,12 @@ Kraków district, static router layer plus mobile phone layer. Real ed25519 sign
 
 Live metrics: reach, delivery per class, hops, latency. Sliders for participation and radio range show the **percolation threshold**: how few nodes are enough.
 
-Nothing else is built. Pomóc is a vision; the simulation is the argument.
+Cryptography is standard and not simulated; the simulation is about mesh behaviour. Nothing else is built. Pomóc is a vision; the simulation is the argument.
 
 ---
 <!-- kicker: Why it is believable -->
 <!-- footer: Pomóc · concept, research and docs made with AI assistance (Claude Code); sources in the repo -->
-## Every piece exists. Nobody has combined them.
+## Every piece has been tried. Nobody has combined them.
 
 - **00000JAPAN** and **Comcast** already flip existing Wi-Fi open in disasters
 - **Alert RCB** is moving into mObywatel; the **EUDI wallet** is mandatory EU-wide

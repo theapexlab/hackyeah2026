@@ -71,12 +71,9 @@ accepted as the price of a single trusted issuer and bounded as follows:
 4. **Separate issuing key.** Citizen-certificate issuance uses a different key from
    declarations and alerts (NFR-SEC-04), so abuse of citizen keys cannot forge official
    messages.
-5. **Transparency.** Every issuance (pseudonym, serial, time, never the key) and every
-   escrow release is published to the append-only transparency log. Duplicate issuance for
-   one identity is publicly detectable.
-6. **Dual control and audit.** Issuance HSMs require m-of-n operators; access is logged
+5. **Dual control and audit.** Issuance HSMs require m-of-n operators; access is logged
    under rules published in advance (NFR-PRV-04).
-7. **Non-repudiation is not claimed.** A signature proves "a credential the Authority
+6. **Non-repudiation is not claimed.** A signature proves "a credential the Authority
    issued", not "this person". Disputes in peace mode already rest on reputation
    (FR-GOV-06), not on signature evidence.
 
@@ -109,7 +106,7 @@ Policy fields: `portal_write` (none / check-in / check-in + structured request),
 | Typical cause | cell outage, cable cut, cyberattack on networks | flood, storm, earthquake, long blackout | terror, war, hybrid attack |
 | Entered by | local automation (no backhaul) or declaration | declaration only | declaration only |
 | Router captive portal | read + check-in, aggregated | read + check-in + structured request, aggregated, flagged unverified | **read only**, one-way |
-| Citizen classes | LIFE_CRITICAL, SAFETY, CHECK_IN, INFO, free GIVE | same | LIFE_CRITICAL, SAFETY, CHECK_IN only; **INFO off** |
+| Citizen classes | LIFE_CRITICAL, SAFETY, CHECK_IN, CASUALTY_REPORT, INFO, free GIVE | same | LIFE_CRITICAL, SAFETY, CHECK_IN, CASUALTY_REPORT only; **INFO off** |
 | Hop limit | 10 | 15 | 6 |
 | Phone topology gossip | on | on | **off** (routers only) |
 | Radio emission | normal | normal | reduced duty cycle |
@@ -167,7 +164,8 @@ separate column from signed citizen check-ins.
 | INFO (local question or answer)           | Yes                | Yes               | Citizen              | No       |
 | LIFE_CRITICAL (AED, EpiPen, insulin, CPR) | Yes, high priority | Yes, top priority | Citizen              | Never    |
 | SAFETY (fire, flooding, structural)       | Yes                | Yes               | Citizen              | Never    |
-| CHECK_IN ("I am OK", "I need evacuation") | No                 | Yes               | Citizen              | Never    |
+| CHECK_IN ("I am OK", "I need evacuation"; status in the clear, free text sealed to contacts and the Authority) | No | Yes | Citizen | Never |
+| CASUALTY_REPORT (sealed to the Authority: short message, optional position; relays forward it opaque) | No | Yes | Citizen | Never |
 | OFFICIAL_ALERT                            | Yes                | Yes               | Authority            | Never    |
 | MODE_DECLARATION                          | n/a                | n/a               | Authority            | Never    |
 | TOPOLOGY (neighbour list, link state)     | Yes                | Yes               | Any node incl. relay | Never    |
