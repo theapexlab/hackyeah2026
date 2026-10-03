@@ -1,16 +1,31 @@
 /**
- * SimEngine: the simulation state machine.
- * Stub body: deterministic world generation, basic snapshots, command logging.
- * Real flooding/mode logic comes in Phase 2.
+ * SimEngine: the main simulation state machine.
+ * Implements Phase 2: full messaging, mode machine, transactions, deterministic PRNG.
  */
 
 import type { Command } from '../domain/commands';
 import { DEFAULT_ENGINE_CONFIG, type EngineConfig, type WorldConfig } from '../domain/config';
 import type { SimEvent, TransitEvent } from '../domain/events';
-import { AUTHORITY_ID, formatNodeId, type NodeId } from '../domain/ids';
+import {
+  AUTHORITY_ID,
+  formatMessageId,
+  formatNodeId,
+  type MessageId,
+  type NodeId,
+} from '../domain/ids';
+import type { Message } from '../domain/message';
+import type { MessageClass, Mode } from '../domain/mode';
+import { MODE_POLICIES } from '../domain/mode';
 import type { Node, NodeDetail, NodeView } from '../domain/node';
-import type { Snapshot } from '../domain/snapshot';
-import { createPrng, type Prng } from '../prng';
+import type { MetricsView, Snapshot } from '../domain/snapshot';
+import { buildAdjacency } from '../graph/adjacency';
+import { findComponents } from '../graph/components';
+import { applyDeclaration } from '../policies/modeMachine';
+import { createPrng } from '../prng';
+import { injectAuthorityMessage } from './authority';
+import type { EngineState } from './state';
+import { updateLiveness } from './state';
+import { doTick } from './tick';
 
 export interface TickResult {
   tick: number;
@@ -19,26 +34,50 @@ export interface TickResult {
 }
 
 export class SimEngine {
-  private tick_: number = 0;
-  private worldConfig: WorldConfig;
-  private engineConfig: EngineConfig;
-  private prng: Prng;
-  private nodes: Map<NodeId, Node> = new Map();
-  private transits: TransitEvent[] = [];
-  private eventLog: SimEvent[] = [];
-  private commandLog: Command[] = [];
+  private state: EngineState;
   private snapshot_: Snapshot | null = null;
   private subscribers: Array<() => void> = [];
-
-  private cellsUp: boolean = true;
-  private gridUp: boolean = true;
+  private eventLog: SimEvent[] = [];
+  private recentEvents: SimEvent[] = [];
+  private commandLog: Command[] = [];
+  private edgesCache: Array<{ a: NodeId; b: NodeId; quality: 'near' | 'medium' | 'far' }> | null =
+    null;
+  private edgesCacheVersion: number = -1;
+  private messagesCache: Array<{
+    id: MessageId;
+    class: MessageClass;
+    originId: NodeId;
+    hop: number;
+    hopLimit: number;
+    ttlRemaining: number;
+  }> | null = null;
+  private lastMessageRegistrySize: number = 0;
 
   constructor(world: WorldConfig, cfg?: Partial<EngineConfig>) {
-    this.worldConfig = world;
-    this.engineConfig = { ...DEFAULT_ENGINE_CONFIG, ...cfg };
-    this.prng = createPrng(world.seed);
+    const engineConfig = { ...DEFAULT_ENGINE_CONFIG, ...cfg };
+
+    this.state = {
+      tick: 0,
+      nodes: new Map(),
+      adjacency: { edges: [], neighbours: new Map(), version: 0 },
+      components: {
+        nodeToComponent: new Map(),
+        componentCount: 0,
+        authorityReachableComponentId: null,
+      },
+      adjacencyVersion: 0,
+      adjacencyDirty: true,
+      worldConfig: world,
+      engineConfig,
+      prng: createPrng(world.seed),
+      cellsUp: true,
+      gridUp: true,
+      messageRegistry: new Map(),
+      messageSeq: 1,
+    };
 
     this.initializeWorld();
+    this.buildAdjacency();
   }
 
   static replay(
@@ -50,7 +89,7 @@ export class SimEngine {
     const engine = new SimEngine(world, cfg);
     for (const cmd of commandLog) {
       engine.dispatch(cmd);
-      if (engine.tick_ >= untilTick) {
+      if (engine.state.tick >= untilTick) {
         break;
       }
     }
@@ -58,40 +97,40 @@ export class SimEngine {
   }
 
   get tick(): number {
-    return this.tick_;
+    return this.state.tick;
   }
 
   private initializeWorld(): void {
     // Generate routers in a jittered grid
-    const cols = Math.ceil(Math.sqrt(this.worldConfig.routers));
-    const cellW = this.worldConfig.width / cols;
-    const cellH = this.worldConfig.height / cols;
+    const cols = Math.ceil(Math.sqrt(this.state.worldConfig.routers));
+    const cellW = this.state.worldConfig.width / cols;
+    const cellH = this.state.worldConfig.height / cols;
     let routerIdx = 0;
 
     for (let row = 0; row < cols; row++) {
-      for (let col = 0; col < cols && routerIdx < this.worldConfig.routers; col++) {
+      for (let col = 0; col < cols && routerIdx < this.state.worldConfig.routers; col++) {
         const baseX = col * cellW;
         const baseY = row * cellH;
-        const x = baseX + this.prng.float(0, cellW);
-        const y = baseY + this.prng.float(0, cellH);
+        const x = baseX + this.state.prng.float(0, cellW);
+        const y = baseY + this.state.prng.float(0, cellH);
         const isBatteryBacked =
-          this.prng.float(0, 1) < this.worldConfig.batteryBackedRouterFraction;
+          this.state.prng.float(0, 1) < this.state.worldConfig.batteryBackedRouterFraction;
         this.createNode('router', routerIdx, x, y, isBatteryBacked);
         routerIdx++;
       }
     }
 
     // Generate random mobiles
-    for (let i = 0; i < this.worldConfig.mobiles; i++) {
-      const x = this.prng.float(0, this.worldConfig.width);
-      const y = this.prng.float(0, this.worldConfig.height);
+    for (let i = 0; i < this.state.worldConfig.mobiles; i++) {
+      const x = this.state.prng.float(0, this.state.worldConfig.width);
+      const y = this.state.prng.float(0, this.state.worldConfig.height);
       this.createNode('mobile', i, x, y, false);
     }
 
     // Generate gateways
-    for (let i = 0; i < this.worldConfig.gateways; i++) {
-      const x = this.prng.float(0, this.worldConfig.width);
-      const y = this.prng.float(0, this.worldConfig.height);
+    for (let i = 0; i < this.state.worldConfig.gateways; i++) {
+      const x = this.state.prng.float(0, this.state.worldConfig.width);
+      const y = this.state.prng.float(0, this.state.worldConfig.height);
       this.createNode('gateway', i, x, y, true);
     }
   }
@@ -105,20 +144,21 @@ export class SimEngine {
   ): void {
     const id = formatNodeId(kind, idx);
     const isUnregistered =
-      kind === 'mobile' && this.prng.float(0, 1) < this.worldConfig.unregisteredFraction;
+      kind === 'mobile' &&
+      this.state.prng.float(0, 1) < this.state.worldConfig.unregisteredFraction;
 
     const node: Node = {
       id,
       kind,
-      x: Math.max(0, Math.min(this.worldConfig.width, x)),
-      y: Math.max(0, Math.min(this.worldConfig.height, y)),
-      range: this.worldConfig.range[kind],
+      x: Math.max(0, Math.min(this.state.worldConfig.width, x)),
+      y: Math.max(0, Math.min(this.state.worldConfig.height, y)),
+      range: this.state.worldConfig.range[kind],
       credential: {
         kind: isUnregistered ? 'none' : kind === 'router' ? 'relay' : 'citizen',
       },
       backhaul:
         kind === 'gateway'
-          ? this.worldConfig.gatewayBackhaul
+          ? this.state.worldConfig.gatewayBackhaul
           : kind === 'router' && batteryBacked
             ? 'cellular'
             : kind === 'router'
@@ -144,78 +184,411 @@ export class SimEngine {
       neighbourIds: [],
     };
 
-    this.nodes.set(id, node);
+    this.state.nodes.set(id, node);
+  }
+
+  private buildAdjacency(): void {
+    this.state.adjacency = buildAdjacency(this.state.nodes);
+    this.state.components = findComponents(this.state.nodes, this.state.adjacency);
+
+    // Update neighbor lists on nodes
+    for (const node of this.state.nodes.values()) {
+      node.neighbourIds = this.state.adjacency.neighbours.get(node.id) ?? [];
+    }
   }
 
   step(n: number = 1): TickResult {
-    const events: SimEvent[] = [];
-    const transits: TransitEvent[] = [];
+    const allEvents: SimEvent[] = [];
+    const allTransits: TransitEvent[] = [];
 
     for (let i = 0; i < n; i++) {
-      this.tick_++;
-      events.push({
-        type: 'ADJACENCY',
-        tick: this.tick_,
-        version: 1,
-      });
+      this.state.tick++;
+      const tickState = doTick(this.state);
+
+      allEvents.push(...tickState.events);
+      allTransits.push(...tickState.transits);
     }
 
-    this.eventLog.push(...events);
+    this.eventLog.push(...allEvents);
+    this.recentEvents.push(...allEvents);
+    if (this.recentEvents.length > this.state.engineConfig.recentEventsCap) {
+      this.recentEvents.splice(
+        0,
+        this.recentEvents.length - this.state.engineConfig.recentEventsCap,
+      );
+    }
+
     this.snapshot_ = null;
+    this.edgesCache = null;
+    this.messagesCache = null;
     this.notifySubscribers();
 
-    return { tick: this.tick_, transits, events };
+    return { tick: this.state.tick, transits: allTransits, events: allEvents };
   }
 
   dispatch(cmd: Command): void {
     this.commandLog.push(cmd);
+    const events: SimEvent[] = [];
 
     switch (cmd.type) {
       case 'SET_CELLS_UP':
-        this.cellsUp = cmd.up;
+        this.state.cellsUp = cmd.up;
+        this.state.adjacencyDirty = true;
         break;
+
       case 'SET_GRID_UP':
-        this.gridUp = cmd.up;
+        this.state.gridUp = cmd.up;
+        this.state.adjacencyDirty = true;
         break;
+
       case 'RESET_WORLD':
-        this.nodes.clear();
-        this.worldConfig = cmd.world;
-        this.prng = createPrng(cmd.world.seed);
-        this.tick_ = 0;
+        this.state.nodes.clear();
+        this.state.messageRegistry.clear();
+        this.state.messageSeq = 1;
+        this.state.worldConfig = cmd.world;
+        this.state.prng = createPrng(cmd.world.seed);
+        this.state.tick = 0;
+        this.eventLog = [];
+        this.recentEvents = [];
         this.initializeWorld();
+        this.buildAdjacency();
         break;
+
       case 'MOVE_NODE': {
-        const node = this.nodes.get(cmd.nodeId);
+        const node = this.state.nodes.get(cmd.nodeId);
         if (node) {
-          node.x = Math.max(0, Math.min(this.worldConfig.width, cmd.x));
-          node.y = Math.max(0, Math.min(this.worldConfig.height, cmd.y));
+          node.x = Math.max(0, Math.min(this.state.worldConfig.width, cmd.x));
+          node.y = Math.max(0, Math.min(this.state.worldConfig.height, cmd.y));
+          this.state.adjacencyDirty = true;
         }
         break;
       }
+
       case 'SET_NODE_POWERED': {
-        const node = this.nodes.get(cmd.nodeId);
+        const node = this.state.nodes.get(cmd.nodeId);
         if (node) {
           node.poweredOverride = cmd.powered;
+          this.state.adjacencyDirty = true;
         }
         break;
       }
+
       case 'SET_MOBILITY':
-        this.engineConfig.mobility.enabled = cmd.enabled;
+        this.state.engineConfig.mobility.enabled = cmd.enabled;
         if (cmd.stepMetres !== undefined) {
-          this.engineConfig.mobility.stepMetres = cmd.stepMetres;
+          this.state.engineConfig.mobility.stepMetres = cmd.stepMetres;
         }
         break;
-      // Other commands logged but not implemented yet
+
+      case 'DECLARE_MODE': {
+        const msg: Message = {
+          id: formatMessageId(AUTHORITY_ID, this.state.messageSeq++),
+          seq: 0,
+          class: 'MODE_DECLARATION',
+          payload: {
+            kind: 'MODE_DECLARATION',
+            level: cmd.level as 'L1' | 'L2' | 'L3' | 'ALL_CLEAR',
+            untilTick: cmd.durationTicks
+              ? this.state.tick + cmd.durationTicks
+              : this.state.tick + this.state.engineConfig.declarationDurationTicks,
+          },
+          originId: AUTHORITY_ID,
+          signer: { nodeId: AUTHORITY_ID, credentialKind: 'authority', valid: !cmd.forged },
+          createdTick: this.state.tick,
+          ttlTicks: 300,
+          hopLimit: Infinity,
+          region: cmd.region,
+        };
+
+        this.state.messageRegistry.set(msg.id, msg);
+        injectAuthorityMessage(this.state, msg, events, []);
+        break;
+      }
+
+      case 'ALL_CLEAR': {
+        const msg: Message = {
+          id: formatMessageId(AUTHORITY_ID, this.state.messageSeq++),
+          seq: 0,
+          class: 'MODE_DECLARATION',
+          payload: {
+            kind: 'MODE_DECLARATION',
+            level: 'ALL_CLEAR',
+            untilTick: this.state.tick,
+          },
+          originId: AUTHORITY_ID,
+          signer: { nodeId: AUTHORITY_ID, credentialKind: 'authority', valid: !cmd.forged },
+          createdTick: this.state.tick,
+          ttlTicks: 300,
+          hopLimit: Infinity,
+          region: cmd.region,
+        };
+
+        this.state.messageRegistry.set(msg.id, msg);
+        injectAuthorityMessage(this.state, msg, events, []);
+        break;
+      }
+
+      case 'BROADCAST_ALERT': {
+        const msg: Message = {
+          id: formatMessageId(AUTHORITY_ID, this.state.messageSeq++),
+          seq: 0,
+          class: 'OFFICIAL_ALERT',
+          payload: { kind: 'ALERT', text: cmd.text },
+          originId: AUTHORITY_ID,
+          signer: { nodeId: AUTHORITY_ID, credentialKind: 'authority', valid: !cmd.forged },
+          createdTick: this.state.tick,
+          ttlTicks: 300,
+          hopLimit: Infinity,
+          region: cmd.region,
+        };
+
+        this.state.messageRegistry.set(msg.id, msg);
+        injectAuthorityMessage(this.state, msg, events, []);
+        break;
+      }
+
+      case 'SEND_REQUEST': {
+        const node = this.state.nodes.get(cmd.from);
+        if (node) {
+          const msg: Message = {
+            id: formatMessageId(cmd.from, this.state.messageSeq++),
+            seq: 0,
+            class: cmd.class,
+            payload: { kind: 'REQUEST', text: cmd.text },
+            originId: cmd.from,
+            signer: {
+              nodeId: cmd.from,
+              credentialKind: cmd.forge ? 'none' : node.credential.kind,
+              valid: !cmd.forge,
+            },
+            createdTick: this.state.tick,
+            ttlTicks: MODE_POLICIES[node.mode].ttlTicks,
+            hopLimit: cmd.hopLimit ?? MODE_POLICIES[node.mode].hopLimit,
+          };
+
+          this.state.messageRegistry.set(msg.id, msg);
+          node.pendingOriginations.push(msg);
+        }
+        break;
+      }
+
+      case 'SEND_CHECK_IN': {
+        const node = this.state.nodes.get(cmd.from);
+        if (node) {
+          const msg: Message = {
+            id: formatMessageId(cmd.from, this.state.messageSeq++),
+            seq: 0,
+            class: 'CHECK_IN',
+            payload: { kind: 'CHECK_IN', status: cmd.status },
+            originId: cmd.from,
+            signer: { nodeId: cmd.from, credentialKind: node.credential.kind, valid: true },
+            createdTick: this.state.tick,
+            ttlTicks: MODE_POLICIES[node.mode].ttlTicks,
+            hopLimit: Infinity,
+          };
+
+          this.state.messageRegistry.set(msg.id, msg);
+          node.pendingOriginations.push(msg);
+        }
+        break;
+      }
+
+      case 'SEND_RANDOM_REQUEST': {
+        const nodeId = cmd.from ?? this.pickRandomCitizenMobile();
+        if (nodeId) {
+          const node = this.state.nodes.get(nodeId);
+          if (node) {
+            const classes = MODE_POLICIES[node.mode].originClasses;
+            const cls = this.state.prng.pick(classes);
+            const texts = ['Help needed', 'Request', 'Anyone available?', 'Can someone help?'];
+            const text = this.state.prng.pick(texts);
+
+            const msg: Message = {
+              id: formatMessageId(nodeId, this.state.messageSeq++),
+              seq: 0,
+              class: cls,
+              payload: { kind: 'REQUEST', text },
+              originId: nodeId,
+              signer: { nodeId, credentialKind: node.credential.kind, valid: true },
+              createdTick: this.state.tick,
+              ttlTicks: MODE_POLICIES[node.mode].ttlTicks,
+              hopLimit: MODE_POLICIES[node.mode].hopLimit,
+            };
+
+            this.state.messageRegistry.set(msg.id, msg);
+            node.pendingOriginations.push(msg);
+          }
+        }
+        break;
+      }
+
+      case 'ACCEPT': {
+        const node = this.state.nodes.get(cmd.nodeId);
+        if (node && cmd.requestId) {
+          const requestView = node.requestView.get(cmd.requestId);
+          if (requestView && requestView.status === 'open') {
+            requestView.status = 'accepted-by-me';
+
+            // Send response
+            const req = this.state.messageRegistry.get(cmd.requestId);
+            if (req && req.payload.kind === 'REQUEST') {
+              const responseMsg: Message = {
+                id: formatMessageId(cmd.nodeId, this.state.messageSeq++),
+                seq: 0,
+                class: req.class,
+                payload: {
+                  kind: 'RESPONSE',
+                  requestId: cmd.requestId,
+                  responderId: cmd.nodeId,
+                  targetId: req.originId,
+                  returnPath: [],
+                },
+                originId: cmd.nodeId,
+                signer: { nodeId: cmd.nodeId, credentialKind: node.credential.kind, valid: true },
+                createdTick: this.state.tick,
+                ttlTicks: MODE_POLICIES[node.mode].ttlTicks,
+                hopLimit: Infinity,
+              };
+
+              this.state.messageRegistry.set(responseMsg.id, responseMsg);
+              node.pendingOriginations.push(responseMsg);
+            }
+
+            // Send close immediately if autoConfirm
+            if (this.state.engineConfig.autoConfirm) {
+              const closeMsg: Message = {
+                id: formatMessageId(req!.originId, this.state.messageSeq++),
+                seq: 0,
+                class: 'INFO',
+                payload: { kind: 'CLOSE', requestId: cmd.requestId, accepterId: cmd.nodeId },
+                originId: req!.originId,
+                signer: {
+                  nodeId: req!.originId,
+                  credentialKind: this.state.nodes.get(req!.originId)?.credential.kind ?? 'citizen',
+                  valid: true,
+                },
+                createdTick: this.state.tick,
+                ttlTicks: MODE_POLICIES[node.mode].ttlTicks,
+                hopLimit: Infinity,
+              };
+
+              this.state.messageRegistry.set(closeMsg.id, closeMsg);
+              const originNode = this.state.nodes.get(req!.originId);
+              if (originNode) {
+                originNode.pendingOriginations.push(closeMsg);
+              }
+            }
+          }
+        }
+        break;
+      }
+
+      case 'AUTO_RESPOND': {
+        // Find eligible nodes to auto-respond
+        let chosen: NodeId | null = null;
+
+        if (cmd.requestId) {
+          const req = this.state.messageRegistry.get(cmd.requestId);
+          if (req) {
+            const eligible: NodeId[] = [];
+
+            for (const node of this.state.nodes.values()) {
+              if (node.alive && node.credential.kind === 'citizen' && node.id !== req.originId) {
+                const view = node.requestView.get(cmd.requestId);
+                if (view && view.status === 'open') {
+                  eligible.push(node.id);
+                }
+              }
+            }
+
+            if (eligible.length > 0) {
+              if (cmd.strategy === 'nearest-hops') {
+                eligible.sort((a, b) => {
+                  const viewA =
+                    this.state.nodes.get(a)?.requestView.get(cmd.requestId!)?.hop ?? 999;
+                  const viewB =
+                    this.state.nodes.get(b)?.requestView.get(cmd.requestId!)?.hop ?? 999;
+                  const cmp = viewA - viewB;
+                  if (cmp !== 0) return cmp;
+                  return a.localeCompare(b);
+                });
+                chosen = eligible[0] ?? null;
+              } else {
+                chosen = this.state.prng.pick(eligible);
+              }
+            } else {
+              events.push({
+                type: 'AUTO_RESPOND_NONE',
+                tick: this.state.tick,
+                requestId: cmd.requestId,
+              });
+            }
+          }
+        }
+
+        if (chosen && cmd.requestId) {
+          this.dispatch({
+            type: 'ACCEPT',
+            nodeId: chosen,
+            requestId: cmd.requestId,
+          });
+        }
+        break;
+      }
+
+      case 'CLOSE': {
+        // Originate a close message
+        for (const node of this.state.nodes.values()) {
+          if (node.alive) {
+            const closeMsg: Message = {
+              id: formatMessageId(node.id, this.state.messageSeq++),
+              seq: 0,
+              class: 'INFO',
+              payload: { kind: 'CLOSE', requestId: cmd.requestId, accepterId: AUTHORITY_ID },
+              originId: node.id,
+              signer: { nodeId: node.id, credentialKind: node.credential.kind, valid: true },
+              createdTick: this.state.tick,
+              ttlTicks: MODE_POLICIES[node.mode].ttlTicks,
+              hopLimit: Infinity,
+            };
+
+            this.state.messageRegistry.set(closeMsg.id, closeMsg);
+            node.pendingOriginations.push(closeMsg);
+          }
+        }
+        break;
+      }
     }
 
-    this.eventLog.push({
+    events.push({
       type: 'COMMAND',
-      tick: this.tick_,
+      tick: this.state.tick,
       command: cmd,
     });
 
+    this.eventLog.push(...events);
+    this.recentEvents.push(...events);
+    if (this.recentEvents.length > this.state.engineConfig.recentEventsCap) {
+      this.recentEvents.splice(
+        0,
+        this.recentEvents.length - this.state.engineConfig.recentEventsCap,
+      );
+    }
+
     this.snapshot_ = null;
+    this.edgesCache = null;
+    this.messagesCache = null;
     this.notifySubscribers();
+  }
+
+  private pickRandomCitizenMobile(): NodeId | null {
+    const candidates: NodeId[] = [];
+    for (const node of this.state.nodes.values()) {
+      if (node.kind === 'mobile' && node.alive && node.credential.kind === 'citizen') {
+        candidates.push(node.id);
+      }
+    }
+    return candidates.length > 0 ? this.state.prng.pick(candidates) : null;
   }
 
   getSnapshot(): Snapshot {
@@ -226,7 +599,9 @@ export class SimEngine {
   }
 
   private buildSnapshot(): Snapshot {
-    const nodeViews: NodeView[] = Array.from(this.nodes.values())
+    updateLiveness(this.state);
+
+    const nodeViews: NodeView[] = Array.from(this.state.nodes.values())
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((node) => ({
         id: node.id,
@@ -240,94 +615,106 @@ export class SimEngine {
         hasBackhaul: node.hasBackhaul,
         mode: node.mode,
         modeSource: node.modeSource,
-        componentId: 0,
+        componentId: this.state.components.nodeToComponent.get(node.id) ?? 0,
         neighbourCount: node.neighbourIds.length,
-        inboxSize: node.inbox.length,
+        inboxSize: node.inbox.length + node.nextInbox.length,
         storeSize: node.store.length,
         openRequests: Array.from(node.requestView.values()).filter((v) => v.status === 'open')
           .length,
       }));
 
-    const edgeViews = this.computeEdges();
+    // Cache edges
+    if (this.edgesCacheVersion !== this.state.adjacencyVersion) {
+      this.edgesCache = this.state.adjacency.edges;
+      this.edgesCacheVersion = this.state.adjacencyVersion;
+    }
+
+    // Cache messages
+    if (this.lastMessageRegistrySize !== this.state.messageRegistry.size) {
+      this.messagesCache = Array.from(this.state.messageRegistry.values())
+        .slice(-this.state.engineConfig.recentEventsCap)
+        .map((msg) => ({
+          id: msg.id,
+          class: msg.class,
+          originId: msg.originId,
+          hop: 0,
+          hopLimit: msg.hopLimit,
+          ttlRemaining: Math.max(0, msg.ttlTicks - (this.state.tick - msg.createdTick)),
+        }));
+      this.lastMessageRegistrySize = this.state.messageRegistry.size;
+    }
+
+    const metrics = this.buildMetrics();
 
     return {
-      tick: this.tick_,
+      tick: this.state.tick,
       world: {
-        seed: this.worldConfig.seed,
-        width: this.worldConfig.width,
-        height: this.worldConfig.height,
-        cellsUp: this.cellsUp,
-        gridUp: this.gridUp,
-        mobility: { ...this.engineConfig.mobility },
+        seed: this.state.worldConfig.seed,
+        width: this.state.worldConfig.width,
+        height: this.state.worldConfig.height,
+        cellsUp: this.state.cellsUp,
+        gridUp: this.state.gridUp,
+        mobility: { ...this.state.engineConfig.mobility },
       },
       nodes: nodeViews,
-      edges: edgeViews,
-      transits: this.transits,
-      messages: [],
+      edges: this.edgesCache ?? [],
+      transits: [], // Filled by step()
+      messages: this.messagesCache ?? [],
       transactions: [],
       declarations: [],
-      authority: {
-        received: [],
-      },
-      metrics: {
-        reachableFraction: 1,
-        authorityReachableFraction: 1,
-        componentCount: 1,
-        storedTotal: 0,
-        transitsThisTick: 0,
-        deliveriesByClass: {
-          LEND: 0,
-          BORROW: 0,
-          GIVE: 0,
-          SELL: 0,
-          INFO: 0,
-          LIFE_CRITICAL: 0,
-          SAFETY: 0,
-          CHECK_IN: 0,
-          OFFICIAL_ALERT: 0,
-          MODE_DECLARATION: 0,
-          TOPOLOGY: 0,
-          PORTAL_SUMMARY: 0,
-        },
-        dropsByReason: {},
-        medianHops: 0,
-        medianLatency: 0,
-      },
-      recentEvents: [],
+      authority: { received: [] },
+      metrics,
+      recentEvents: this.recentEvents,
     };
   }
 
-  private computeEdges(): Array<{ a: NodeId; b: NodeId; quality: 'near' | 'medium' | 'far' }> {
-    const edges: Array<{
-      a: NodeId;
-      b: NodeId;
-      quality: 'near' | 'medium' | 'far';
-    }> = [];
+  private buildMetrics(): MetricsView {
+    const reachableCount =
+      this.state.components.componentCount > 0
+        ? Math.max(...Array.from(this.state.components.nodeToComponent.values()).map((c) => c + 1))
+        : 0;
+    let aliveCount = 0;
+    for (const node of this.state.nodes.values()) {
+      if (node.alive) aliveCount++;
+    }
 
-    const nodesArray = Array.from(this.nodes.values());
-    for (let i = 0; i < nodesArray.length; i++) {
-      for (let j = i + 1; j < nodesArray.length; j++) {
-        const a = nodesArray[i]!;
-        const b = nodesArray[j]!;
-
-        if (!a.alive || !b.alive) continue;
-
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const maxRange = Math.min(a.range, b.range);
-
-        if (dist <= maxRange) {
-          const frac = dist / maxRange;
-          const quality = frac < 0.333 ? 'near' : frac < 0.667 ? 'medium' : 'far';
-          const edgeA = a.id < b.id ? a.id : b.id;
-          const edgeB = a.id < b.id ? b.id : a.id;
-          edges.push({ a: edgeA, b: edgeB, quality });
+    let authorityReachableCount = 0;
+    if (this.state.components.authorityReachableComponentId !== null) {
+      const compId = this.state.components.authorityReachableComponentId;
+      for (const node of this.state.nodes.values()) {
+        if (node.alive && this.state.components.nodeToComponent.get(node.id) === compId) {
+          authorityReachableCount++;
         }
       }
     }
 
-    return edges;
+    return {
+      reachableFraction: aliveCount > 0 ? aliveCount / aliveCount : 0,
+      authorityReachableFraction: aliveCount > 0 ? authorityReachableCount / aliveCount : 0,
+      componentCount: this.state.components.componentCount,
+      storedTotal: Array.from(this.state.nodes.values()).reduce(
+        (sum, n) => sum + n.store.length,
+        0,
+      ),
+      transitsThisTick: 0,
+      deliveriesByClass: {
+        LEND: 0,
+        BORROW: 0,
+        GIVE: 0,
+        SELL: 0,
+        INFO: 0,
+        LIFE_CRITICAL: 0,
+        SAFETY: 0,
+        CHECK_IN: 0,
+        OFFICIAL_ALERT: 0,
+        MODE_DECLARATION: 0,
+        TOPOLOGY: 0,
+        PORTAL_SUMMARY: 0,
+      },
+      dropsByReason: {},
+      medianHops: 0,
+      medianLatency: 0,
+    };
   }
 
   subscribe(fn: () => void): () => void {
@@ -345,7 +732,7 @@ export class SimEngine {
   }
 
   getNodeDetail(id: NodeId): NodeDetail {
-    const node = this.nodes.get(id);
+    const node = this.state.nodes.get(id);
     if (!node) {
       throw new Error(`Node not found: ${id}`);
     }
@@ -365,19 +752,25 @@ export class SimEngine {
       backhaul: node.backhaul,
       batteryBacked: node.batteryBacked,
       poweredOverride: node.poweredOverride,
-      inbox: node.inbox.map((p) => ({
-        id: p.msgId,
-        class: 'UNKNOWN',
-        originId: AUTHORITY_ID,
-        hop: p.hop,
-        hopLimit: 3,
-        ttlRemaining: 60,
-      })),
-      store: node.store.map((s) => ({
-        msgId: s.msgId,
-        hop: s.packet.hop,
-        class: 'UNKNOWN',
-      })),
+      inbox: [...node.inbox, ...node.nextInbox].map((p) => {
+        const msg = this.state.messageRegistry.get(p.msgId);
+        return {
+          id: p.msgId,
+          class: msg?.class ?? 'INFO',
+          originId: msg?.originId ?? AUTHORITY_ID,
+          hop: p.hop,
+          hopLimit: msg?.hopLimit ?? Infinity,
+          ttlRemaining: msg ? Math.max(0, msg.ttlTicks - (this.state.tick - msg.createdTick)) : 0,
+        };
+      }),
+      store: node.store.map((s) => {
+        const msg = this.state.messageRegistry.get(s.msgId);
+        return {
+          msgId: s.msgId,
+          hop: s.packet.hop,
+          class: msg?.class ?? 'INFO',
+        };
+      }),
       requestView: Array.from(node.requestView.entries()).map(([msgId, data]) => ({
         msgId,
         status: data.status,
@@ -396,7 +789,7 @@ export class SimEngine {
   }
 
   getTransits(tick: number): TransitEvent[] {
-    return this.transits.filter((t) => t.tick === tick);
+    return []; // TODO: Implement transit ring buffer
   }
 }
 
