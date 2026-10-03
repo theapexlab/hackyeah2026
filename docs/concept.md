@@ -22,7 +22,7 @@ colony, every node acts on local information, and coordinated behaviour emerges 
 | Unregistered phone | Mobile    | No          | No                 | Yes (emergency mode only) | None                                                              |
 | Home router (CPE)  | Static    | No          | No                 | Yes                       | Relay certificate issued by the ISP, bound to a verified customer |
 | Gateway            | Static    | No          | No                 | Yes, plus backhaul        | Authority or municipal certificate                                |
-| Authority          | Virtual   | Broadcasts  | No                 | No                        | Root key, embedded in every app build                             |
+| Authority          | Virtual   | Broadcasts  | No                 | No                        | Root key, embedded in every app build; generates and issues all citizen key pairs                            |
 
 Routers are the backbone caste: powered, static, dense in cities, and already remotely
 manageable by ISPs. Phones are the worker caste: mobile, battery-powered, and the only
@@ -30,25 +30,55 @@ thing left when the power goes.
 
 ## Trust model
 
-Standard public key infrastructure, nothing exotic:
+Standard public key infrastructure with **issuer-generated keys**:
 
-1. The app generates a key pair on the device. The private key never leaves the device.
-2. On registration (address plus national ID, in practice through the national identity
-   wallet such as mObywatel or an EUDI wallet) the Authority signs the citizen's public
-   key, producing a **citizen certificate**. The certificate is pseudonymous on the wire:
-   the Authority knows the mapping, peers see only a stable pseudonym.
+1. The Authority (governance body) generates the key pair. On registration (address plus
+   national ID, in practice through the national identity wallet such as mObywatel or an
+   EUDI wallet) it issues the private key and the **citizen certificate** together. The
+   certificate is pseudonymous on the wire: the Authority knows the mapping, peers see
+   only a stable pseudonym.
+2. The private key is delivered wrapped to a non-extractable enrollment key created in the
+   device secure element at install time. The device imports it into the secure element;
+   it never exists in clear outside the HSM and the secure element, including on any mesh
+   hop.
 3. Every request, offer, acceptance and check-in is signed with the device private key and
    carries the certificate.
 4. Any node can verify any message **offline** using only the Authority root public key,
    which is embedded in the app. No network round trip is needed.
-5. Certificates are short-lived and renewed silently in peace mode, so revocation does not
-   depend on fetching revocation lists during an outage.
+5. Certificates and key pairs are short-lived and re-issued silently. In peace mode renewal
+   goes over the internet; during an outage the renewal request is forwarded through the
+   mesh to a gateway and the issuer returns a receipt, so revocation and renewal do not
+   depend on fetching lists during an outage.
 6. Routers hold **relay certificates** issued by the ISP under the Authority root. A relay
    certificate grants forwarding rights only. Messages signed by a relay certificate are
    rejected as requests. "Routers cannot act" is therefore a cryptographic property, not a
    policy.
 7. Emergency declarations and official alerts are signed with Authority keys. A forged
    declaration is unverifiable and dropped by every node.
+
+### Key escrow and its mitigations
+
+Because the Authority generates every private key, it can impersonate any citizen. That is
+accepted as the price of a single trusted issuer and bounded as follows:
+
+1. **No retention.** Private keys are generated inside an HSM, exported only wrapped to the
+   target device, and destroyed after delivery is confirmed. Escrow, where law requires
+   it, is a separate, split-knowledge vault (k-of-n custodians), never the issuing HSM.
+2. **Wrapped delivery.** A key is wrapped to the device enrollment key, so mesh hops and
+   gateways carry ciphertext only.
+3. **Short life.** 30-day keys bound the window of any compromise; a compromised key is
+   superseded by the next issuance.
+4. **Separate issuing key.** Citizen-certificate issuance uses a different key from
+   declarations and alerts (NFR-SEC-04), so abuse of citizen keys cannot forge official
+   messages.
+5. **Transparency.** Every issuance (pseudonym, serial, time, never the key) and every
+   escrow release is published to the append-only transparency log. Duplicate issuance for
+   one identity is publicly detectable.
+6. **Dual control and audit.** Issuance HSMs require m-of-n operators; access is logged
+   under rules published in advance (NFR-PRV-04).
+7. **Non-repudiation is not claimed.** A signature proves "a credential the Authority
+   issued", not "this person". Disputes in peace mode already rest on reputation
+   (FR-GOV-06), not on signature evidence.
 
 ## Operating modes
 
@@ -60,7 +90,9 @@ Standard public key infrastructure, nothing exotic:
 - Optional micro-payment or credit per transaction. The mental model is **shared ownership
   amortisation**: a tool pays itself back through community use, so a breakage after N
   lends is already covered.
-- Transport: internet when available, mesh when not. The protocol does not care.
+- Transport: peer traffic is always mesh. The internet is only a path to authorities and
+  issuers (registration, renewal, ledger, alerts, sync). Without internet, authority-bound
+  messages are forwarded through the mesh to a gateway, gated by the sender's priority class.
 
 ### Emergency mode: levels and policy
 

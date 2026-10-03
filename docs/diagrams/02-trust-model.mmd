@@ -5,12 +5,16 @@ sequenceDiagram
   participant A as Authority certificate service
   participant R as Home router (relay only)
   participant N as Neighbour phone
-  Note over P,A: Registration, once, peace mode, online
-  P->>P: generate key pair in secure element (private key never leaves)
+  Note over P,A: Registration, once, online (internet or in-person), peace mode
+  P->>P: create non-extractable enrollment key in secure element
   P->>W: request verified attributes (name, address)
   W-->>P: signed attributes
-  P->>A: public key + signed attributes
-  A-->>P: citizen certificate (pseudonym, 30-day validity, allowed classes)
+  P->>A: enrollment public key + signed attributes
+  A->>A: HSM generates key pair, signs citizen certificate (pseudonym, 30 days, classes)
+  A-->>P: private key wrapped to enrollment key + citizen certificate
+  A->>A: destroy private key copy, publish issuance to transparency log
+  P->>P: import key into secure element
+  Note over P,A: Renewal, no internet: request forwarded by mesh to a gateway, receipt returned along path
   Note over P,N: Any later time, any mode, no network needed
   P->>P: sign request with private key
   P->>R: request + certificate (BLE / Wi-Fi)
