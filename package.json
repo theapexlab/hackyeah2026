@@ -8,7 +8,7 @@
     "dev": "pnpm --filter @pomoc/sim dev",
     "build": "pnpm --filter @pomoc/sim build",
     "preview": "pnpm --filter @pomoc/sim preview",
-    "test": "pnpm --filter @pomoc/core test",
+    "test": "pnpm -r --sequential test",
     "test:watch": "pnpm --filter @pomoc/core test:watch",
     "typecheck": "pnpm -r --sequential typecheck",
     "check": "biome check .",

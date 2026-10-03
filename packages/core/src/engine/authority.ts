@@ -74,7 +74,7 @@ export function inject(state: EngineState, msg: Message, transits: TransitEvent[
 }
 
 /**
- * A backhaul node hands an authority-bound message up (FR-NET-13/14): deduplicated by
+ * A backhaul node hands a verified authority-bound message up (FR-NET-13/14): deduplicated by
  * message id; the first receipt records it in state.authority.received, logs
  * AUTHORITY_RECEIVED and emits one transit via 'uplink' from the node to AUTHORITY_ID.
  * Returns false (no event, no transit) for a message the Authority already has.

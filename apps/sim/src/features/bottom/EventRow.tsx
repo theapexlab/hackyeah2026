@@ -1,6 +1,6 @@
 import { Box, Group, Text } from '@mantine/core';
 import type { SimEvent } from '@pomoc/core';
-import { memo } from 'react';
+import { type MouseEvent, memo } from 'react';
 import { describeEvent } from '../../lib/eventText';
 import { formatTick } from '../../lib/format';
 import { useUiStore } from '../../ui/store';
@@ -11,10 +11,17 @@ interface EventRowProps {
   readonly compact?: boolean;
 }
 
-/** One log line: tick, a dot in the class/mode colour, text. Click selects the node involved. */
+/**
+ * One log line: tick, a dot in the class/mode colour, text. Press selects the node involved
+ * (mousedown, not click: the auto-followed log can scroll between press and release).
+ */
 export const EventRow = memo(function EventRow({ event, compact = false }: EventRowProps) {
   const summary = describeEvent(event);
-  const onClick = (): void => {
+  // Press, not click: while the log follows a live tick the row under the pointer moves between
+  // mousedown and mouseup, and the browser then fires `click` on their common ancestor (the
+  // ScrollArea viewport), where no row handler runs.
+  const onMouseDown = (event: MouseEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return;
     const ui = useUiStore.getState();
     if (summary.nodeId) ui.select(summary.nodeId);
     if (summary.msgId) ui.highlightMessage(summary.msgId);
@@ -27,7 +34,7 @@ export const EventRow = memo(function EventRow({ event, compact = false }: Event
       px={6}
       py={1}
       className="pomoc-log-row"
-      onClick={onClick}
+      onMouseDown={onMouseDown}
       role="button"
       tabIndex={-1}
     >

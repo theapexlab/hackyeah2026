@@ -12,11 +12,11 @@ From the repository root (pnpm workspace):
 ```bash
 pnpm install
 pnpm dev                        # Vite dev server for apps/sim
-pnpm build                      # production bundle in apps/sim/dist (relative base, works from file://)
+pnpm build                      # production bundle in apps/sim/dist (relative base; serve it with pnpm preview or any static server, ES modules do not load from file://)
 pnpm preview                    # serve the built bundle
 pnpm typecheck                  # tsc for core and sim
-pnpm test                       # core engine tests
-pnpm --filter @pomoc/sim test   # sim tests (pure modules: particles, store, event text, ...)
+pnpm test                       # core engine + sim tests
+pnpm --filter @pomoc/sim test   # sim tests only (pure modules: particles, store, event text, ...)
 pnpm check                      # Biome lint + format (pnpm check:fix to auto-format)
 ```
 

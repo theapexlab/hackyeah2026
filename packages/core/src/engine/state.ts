@@ -216,14 +216,17 @@ export function globalMode(state: EngineState): Mode {
 }
 
 /**
- * Remember a message id at a node, evicting the oldest ids beyond cfg.seenCap (FIFO).
+ * Remember a message id at a node, evicting the oldest ids beyond max(1, cap) (FIFO).
  * No-op when the id is already known.
  */
 export function addSeen(node: Node, id: MessageId, cap: number): void {
   if (node.seen.has(id)) return;
   node.seen.add(id);
   node.seenOrder.push(id);
-  while (node.seenOrder.length > cap) {
+  // cap < 1 would evict the id just added (0: dedup never fires) or never terminate
+  // (negative: length > cap is always true), so the effective cap is at least 1.
+  const limit = cap >= 1 ? cap : 1;
+  while (node.seenOrder.length > limit) {
     const oldest = node.seenOrder.shift();
     if (oldest !== undefined) node.seen.delete(oldest);
   }

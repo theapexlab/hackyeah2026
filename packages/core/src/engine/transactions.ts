@@ -154,8 +154,9 @@ export function acceptEligibility(
  * Accept a request at an eligible node: the node's view becomes 'accepted-by-me' and a
  * RESPONSE (class inherited from the request) is queued with
  * returnPath = [node, ...reverse(recorded path)], so returnPath[0] is the responder and
- * the last element is the requester. The hop limit is the node policy's maxHopLimit so a
- * flood fallback has room.
+ * the last element is the requester. The hop limit is max(request.hopLimit, the node
+ * policy's maxHopLimit): the request's budget always covers the recorded return path, the
+ * policy max keeps flood-fallback headroom.
  */
 export function accept(
   state: EngineState,
@@ -177,7 +178,7 @@ export function accept(
       targetId: request.originId,
       returnPath,
     },
-    { hopLimit: MODE_POLICIES[node.mode].maxHopLimit },
+    { hopLimit: Math.max(request.hopLimit, MODE_POLICIES[node.mode].maxHopLimit) },
   );
   queueOrigination(node, msg);
   return msg;

@@ -8,7 +8,10 @@ import { globalMode } from './state';
 
 /** Optional overrides when creating a message. */
 export interface OriginateOptions {
-  /** Requested hop limit; clamped to the origin policy's maxHopLimit. */
+  /**
+   * Requested hop limit; NaN counts as not requested; clamped to the origin policy's
+   * maxHopLimit for REQUEST payloads only.
+   */
   readonly hopLimit?: number;
   /** Lifetime in ticks; defaults to ttlFor(policy, class). */
   readonly ttl?: number;
@@ -21,8 +24,9 @@ export interface OriginateOptions {
  * Create and register a message. Assigns the next message seq, the id
  * `<originId>#<seq>`, createdTick = the current tick (the dispatch tick for commands),
  * ttl = opts.ttl ?? ttlFor(policy, class) and
- * hopLimit = min(opts.hopLimit ?? policy.hopLimit, policy.maxHopLimit), or
- * POSITIVE_INFINITY for authority / unbounded classes. The policy is the origin node's
+ * hopLimit = opts.hopLimit ?? policy.hopLimit (NaN counts as not requested), clamped to
+ * policy.maxHopLimit for REQUEST payloads only, or POSITIVE_INFINITY for authority /
+ * unbounded classes. The policy is the origin node's
  * current mode policy; for the Authority it is the policy of the highest mode among
  * alive nodes. The message is appended to state.messages / messageList (bumping
  * messagesVersion) but NOT queued: call queueOrigination() or authority.inject().
@@ -40,9 +44,13 @@ export function createMessage(
   state.seq.message += 1;
   const seq = state.seq.message;
   const unbounded = isAuthorityClass(cls) || UNBOUNDED_CLASSES.includes(cls);
-  const hopLimit = unbounded
-    ? Number.POSITIVE_INFINITY
-    : Math.min(opts.hopLimit ?? policy.hopLimit, policy.maxHopLimit);
+  // NaN counts as "not requested". Only a REQUEST is clamped to the origin policy's
+  // maxHopLimit: a RESPONSE / CLOSE keeps the budget its caller derived from the request
+  // (relays still apply their own mode cap in forwardOrStore).
+  const requested =
+    opts.hopLimit === undefined || Number.isNaN(opts.hopLimit) ? policy.hopLimit : opts.hopLimit;
+  const cap = payload.kind === 'REQUEST' ? policy.maxHopLimit : Number.POSITIVE_INFINITY;
+  const hopLimit = unbounded ? Number.POSITIVE_INFINITY : Math.min(requested, cap);
   const signer: Signer = opts.signer ?? {
     nodeId: originId,
     credentialKind: isAuthority ? 'authority' : origin.credential.kind,

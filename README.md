@@ -59,7 +59,7 @@ boolean on each message's signer, so forged messages are still *computed* as rej
 ```bash
 pnpm install
 pnpm dev        # http://localhost:5173
-pnpm test       # engine tests (vitest)
+pnpm test       # engine + sim pure-module tests (vitest)
 pnpm typecheck  # tsc for both packages
 pnpm check      # biome lint + format
 pnpm build      # static bundle in apps/sim/dist (works offline, relative base)

@@ -404,3 +404,42 @@ describe('late accept (stage 3)', () => {
     expect(eventsOf(e, 'TX_CLOSED')).toHaveLength(1);
   });
 });
+
+describe('mixed-mode return path', () => {
+  it('a PEACE responder at the end of an L2 path gets a RESPONSE budget that covers the whole path back', () => {
+    const e = engineFrom(
+      Array.from({ length: 10 }, (_, i) =>
+        mobile(`m-${String(i + 1).padStart(3, '0')}`, i * 50, 0),
+      ),
+    );
+    e.dispatch({ type: 'DeclareMode', level: 'L2', region: { x: 200, y: 0, r: 240 } });
+    e.step(3); // delivered on tick 2, applied by the mode machine on tick 3
+    expect(e.getSnapshot().nodes.map((n) => n.mode)).toEqual([...Array(9).fill('L2'), 'PEACE']);
+    e.dispatch({
+      type: 'SendRequest',
+      from: id('m-001'),
+      class: 'INFO',
+      payload: { kind: 'REQUEST', text: 'ladder' },
+      hopLimit: 10,
+    });
+    const requestId = lastMessageId(e);
+    e.step(12);
+    expect(e.getNodeDetail(id('m-010')).requests[0]).toMatchObject({
+      requestId,
+      status: 'open',
+      hop: 9,
+    });
+    e.dispatch({ type: 'Accept', nodeId: id('m-010'), requestId });
+    const response = e.getSnapshot().messages.at(-1)!;
+    expect(response.hopLimit).toBe(10);
+    e.step(15);
+    expect(eventsOf(e, 'TX_ACCEPTED')).toMatchObject([{ nodeId: 'm-001', accepterId: 'm-010' }]);
+    expect(eventsOf(e, 'DELIVERED').filter((d) => d.msgId === response.id)).toMatchObject([
+      { nodeId: 'm-001', hop: 9 },
+    ]);
+    expect(eventsOf(e, 'DROPPED').filter((d) => d.msgId === response.id)).toEqual([]);
+    expect(e.getSnapshot().transactions).toMatchObject([
+      { requestId, status: 'closed', accepterId: 'm-010' },
+    ]);
+  });
+});

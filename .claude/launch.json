@@ -4,7 +4,7 @@
     {
       "name": "sim",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@pomoc/sim", "dev", "--", "--port", "5173", "--strictPort"],
+      "runtimeArgs": ["--filter", "@pomoc/sim", "dev", "--port", "5173", "--strictPort"],
       "port": 5173
     }
   ]

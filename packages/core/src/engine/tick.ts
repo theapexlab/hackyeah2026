@@ -188,7 +188,7 @@ function maybeUplink(
   hop: number,
   transits: TransitEvent[],
 ): void {
-  if (node.hasBackhaul && isAuthorityBound(msg))
+  if (node.hasBackhaul && isAuthorityBound(msg) && verifySigner(msg.signer, msg.class))
     uplink(state, node, msg, state.tick, transits, hop);
 }
 

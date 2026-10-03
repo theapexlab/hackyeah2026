@@ -154,6 +154,8 @@ describe('snapshot identity (plan A4)', () => {
     expect(recent).toEqual(log.slice(-10));
     e.dispatch({ type: 'SetConfig', patch: { recentEventsCap: 3 } });
     expect(e.getSnapshot().recentEvents).toEqual(e.getEventLog().slice(-3));
+    e.dispatch({ type: 'SetConfig', patch: { recentEventsCap: 0 } });
+    expect(e.getSnapshot().recentEvents).toEqual([]);
   });
 
   it('the metrics view keeps its reference across quiet ticks', () => {

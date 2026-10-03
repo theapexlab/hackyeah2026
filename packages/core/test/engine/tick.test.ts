@@ -137,6 +137,21 @@ describe('flooding basics', () => {
     ).toEqual(['m-002', 'm-003', 'm-004', 'm-005', 'm-006', 'm-007']);
     expect(eventsOf(e2, 'DROPPED').at(-1)).toMatchObject({ nodeId: 'm-007', reason: 'HOP_LIMIT' });
   });
+
+  it('a NaN hop limit counts as not requested and falls back to the policy default', () => {
+    const e = engineFrom(line(10));
+    e.dispatch(req('m-001', 'BORROW', { hopLimit: Number.NaN }));
+    expect(e.getSnapshot().messages[0]!).toMatchObject({ hopLimit: 3, unbounded: false });
+    e.step(12);
+    expect(eventsOf(e, 'DELIVERED').map((d) => `${d.nodeId}@${d.hop}`)).toEqual([
+      'm-002@1',
+      'm-003@2',
+      'm-004@3',
+    ]);
+    expect(eventsOf(e, 'DROPPED')).toMatchObject([
+      { tick: 4, nodeId: 'm-004', reason: 'HOP_LIMIT' },
+    ]);
+  });
 });
 
 describe('priority and congestion', () => {
@@ -257,6 +272,19 @@ describe('trust', () => {
     expect(e.getTransits(7)).toMatchObject([{ from: 'm-002', to: 'm-003', hop: 2 }]);
     expect(eventsOf(e, 'DELIVERED').map((d) => d.nodeId)).toEqual(['m-003']);
     expect(e.getNodeDetail(id('m-002')).requests).toEqual([]);
+  });
+
+  it('a forged LIFE_CRITICAL from an unregistered mobile with cells up is flooded but never uplinked', () => {
+    const e = engineFrom([mobile('m-001', 0, 0, 'none'), mobile('m-002', 50, 0)]);
+    e.dispatch(req('m-001', 'LIFE_CRITICAL', { forge: { claimKind: 'citizen' } }));
+    const r1 = e.step();
+    expect(r1.transits.map((t) => `${t.via}:${t.from}>${t.to}`)).toEqual(['hop:m-001>m-002']);
+    e.step();
+    expect(eventsOf(e, 'AUTHORITY_RECEIVED')).toEqual([]);
+    expect(e.getSnapshot().authority.received).toEqual([]);
+    expect(eventsOf(e, 'DROPPED')).toMatchObject([
+      { tick: 2, nodeId: 'm-002', reason: 'UNVERIFIABLE' },
+    ]);
   });
 });
 
@@ -601,6 +629,50 @@ describe('declared modes', () => {
       .map((m) => `${m.from}>${m.to}`);
     expect(trace).toEqual(['PEACE>L3', 'L3>L1', 'L1>PEACE']);
   });
+
+  it('a regional AllClear steps down only the nodes inside its circle; outsiders stay declared and forward it', () => {
+    const e = engineFrom([
+      gateway('g-01', 0, 0),
+      mobile('m-001', 50, 0),
+      mobile('m-002', 100, 0),
+      mobile('m-003', 150, 0),
+      mobile('m-004', 200, 0),
+    ]);
+    e.dispatch({ type: 'SetCellsUp', up: false });
+    e.step(5);
+    e.dispatch({ type: 'DeclareMode', level: 'L3' });
+    e.step(7); // tick 12: the L3 has flooded the line
+    expect(e.getSnapshot().nodes.every((n) => n.mode === 'L3')).toBe(true);
+    e.dispatch({ type: 'AllClear', region: { x: 0, y: 0, r: 10 } });
+    const allClearId = lastMessageId(e);
+    expect(e.getSnapshot().messages.at(-1)!.region).toEqual({ x: 0, y: 0, r: 10 });
+    expect(e.getSnapshot().declarations.map((d) => d.level)).toEqual(['L3']); // city-wide listing survives
+    expect(eventsOf(e, 'AUTHORITY_INJECTED').at(-1)).toMatchObject({ count: 1 });
+    e.step(6); // tick 18
+    expect(e.getSnapshot().nodes.map((n) => `${n.id}:${n.mode}/${n.modeSource}`)).toEqual([
+      'g-01:L1/stepdown',
+      'm-001:L3/declared',
+      'm-002:L3/declared',
+      'm-003:L3/declared',
+      'm-004:L3/declared',
+    ]);
+    expect(eventsOf(e, 'DELIVERED').filter((d) => d.msgId === allClearId)).toMatchObject([
+      { tick: 14, nodeId: 'g-01', hop: 0 },
+    ]);
+    const hops = [13, 14, 15, 16, 17].flatMap((t) =>
+      e
+        .getTransits(t)
+        .filter((x) => x.msgId === allClearId)
+        .map((x) => `${x.tick}:${x.via}:${x.from}>${x.to}@${x.hop}`),
+    );
+    expect(hops).toEqual([
+      '13:authority-inject:authority>g-01@0',
+      '14:hop:g-01>m-001@1',
+      '15:hop:m-001>m-002@2',
+      '16:hop:m-002>m-003@3',
+      '17:hop:m-003>m-004@4',
+    ]);
+  });
 });
 
 describe('liveness and inbox', () => {
@@ -636,6 +708,20 @@ describe('liveness and inbox', () => {
     e.step(2);
     expect(e.getNodeDetail(id('m-001')).seenCount).toBe(2);
     expect(e.getNodeDetail(id('m-002')).seenCount).toBe(2);
+  });
+
+  it.each([0, -1])('seenCap %i still dedups (effective cap 1) and terminates', (seenCap) => {
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 25, 40)], {
+      seenCap,
+    });
+    e.dispatch({ type: 'BroadcastAlert', text: 'x' });
+    e.step(); // inject -> 3 transits
+    e.step(); // each node floods to the other two -> 6 transits
+    const r3 = e.step();
+    expect(r3.transits).toEqual([]);
+    expect(eventsOf(e, 'DROPPED').filter((d) => d.reason === 'DUPLICATE')).toHaveLength(6);
+    expect(eventsOf(e, 'DELIVERED')).toHaveLength(3);
+    expect(e.getNodeDetail(id('m-001')).seenCount).toBe(1);
   });
 
   it('SendRandomRequest picks an alive citizen and a class the mode allows', () => {

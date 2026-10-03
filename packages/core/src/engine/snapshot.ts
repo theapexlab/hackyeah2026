@@ -77,8 +77,7 @@ export function buildSnapshot(state: EngineState, cache: SnapshotCache): Snapsho
     cache.messages = tail.map(toMessageView);
   }
   const cap = Math.max(0, state.config.recentEventsCap);
-  const recentEvents =
-    state.eventLog.length > cap ? state.eventLog.slice(-cap) : state.eventLog.slice();
+  const recentEvents = state.eventLog.slice(Math.max(0, state.eventLog.length - cap));
   return {
     tick: state.tick,
     world: {
