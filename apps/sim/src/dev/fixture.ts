@@ -23,7 +23,7 @@ import { setSnapshotSource } from '../sim/store';
 
 const WIDTH = 1000;
 const HEIGHT = 700;
-const RANGE = { mobile: 60, router: 120, gateway: 150 } as const;
+const RANGE = { mobile: 100, router: 200, gateway: 220 } as const;
 const L2_REGION = { x: 760, y: 340, r: 190 } as const;
 
 function inRegion(x: number, y: number): boolean {

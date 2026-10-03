@@ -300,26 +300,26 @@ describe('autoConfirm off', () => {
 describe('request expiry (TTL)', () => {
   it('retires an expired request everywhere: tx closed without a CLOSE, views pruned, AutoRespond serves the fresh one', () => {
     const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 100, 0)]);
-    e.dispatch(request('m-001')); // A: created at tick 0, PEACE ttl 60
+    e.dispatch(request('m-001')); // A: created at tick 0, PEACE ttl 120
     const a = lastMessageId(e);
     e.step(3);
     expect(viewOf(e, 'm-002')).toEqual(['open']);
     expect(viewOf(e, 'm-003')).toEqual(['open']);
-    e.step(57); // tick 60: 0 + 60 is not < 60, still open everywhere
+    e.step(117); // tick 120: 0 + 120 is not < 120, still open everywhere
     expect(e.getSnapshot().transactions[0]).toMatchObject({ requestId: a, status: 'open' });
     expect(e.getSnapshot().nodes.map((n) => n.openRequests)).toEqual([0, 1, 1]);
     const messagesBefore = e.getSnapshot().messages.length;
 
-    e.step(); // tick 61: expired
+    e.step(); // tick 121: expired
     expect(e.getSnapshot().transactions[0]).toMatchObject({
       requestId: a,
       status: 'closed',
-      closedTick: 61,
+      closedTick: 121,
       accepterId: null,
       responses: 0,
     });
     expect(eventsOf(e, 'TX_CLOSED')).toEqual([
-      { type: 'TX_CLOSED', tick: 61, requestId: a, nodeId: 'm-001' },
+      { type: 'TX_CLOSED', tick: 121, requestId: a, nodeId: 'm-001' },
     ]);
     e.step(2);
     expect(e.getSnapshot().messages).toHaveLength(messagesBefore); // no CLOSE originated
@@ -364,9 +364,9 @@ describe('request expiry (TTL)', () => {
     runTick(state); // tick 2: open at m-002
     expect(acceptEligibility(state, id('m-002'), a)).toMatchObject({ ok: true });
     expect(openTransactionsOldestFirst(state).map((tx) => tx.requestId)).toEqual([a]);
-    while (state.tick < 60) runTick(state);
+    while (state.tick < 120) runTick(state);
     expect(acceptEligibility(state, id('m-002'), a)).toMatchObject({ ok: true });
-    runTick(state); // tick 61
+    runTick(state); // tick 121
     expect(acceptEligibility(state, id('m-002'), a)).toEqual({ ok: false, reason: 'EXPIRED' });
     expect(acceptEligibility(state, id('m-001'), a)).toEqual({ ok: false, reason: 'EXPIRED' });
     expect(openTransactionsOldestFirst(state)).toEqual([]);

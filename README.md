@@ -49,6 +49,46 @@ flooding with hop limits, TTL and de-duplication, store-and-forward via moving p
 coverage analysis for decision makers. Cryptography is standard and not simulated; the
 simulation is about mesh behaviour.
 
+## Running the simulation
+
+The hackathon deliverable is a browser-only simulation of the protocol on a district graph.
+It lives in `apps/sim` (Vite, React, Mantine) on top of `packages/core` (the pure TypeScript
+protocol engine, unit-tested, no UI dependencies). Cryptography is stubbed: trust is a
+boolean on each message's signer, so forged messages are still *computed* as rejected.
+
+```bash
+pnpm install
+pnpm dev        # http://localhost:5173
+pnpm test       # engine tests (vitest)
+pnpm typecheck  # tsc for both packages
+pnpm check      # biome lint + format
+pnpm build      # static bundle in apps/sim/dist (works offline, relative base)
+```
+
+### Driving the demo
+
+Configure the world in the left panel (phones, routers, gateways, radio ranges, seed, random
+walk) and press **Generate**. **Reset** rebuilds the same seed, so a rehearsed run replays
+exactly. Click any device, or the Authority badge, to inspect its inbox, store-and-forward
+buffer and log, and to act from it (send a request, accept one, check in, declare a level,
+broadcast an alert, cut power).
+
+| Key | Event |
+|---|---|
+| `c` | Mobile network (cells) up / down |
+| `g` | Power grid on / off: routers without battery backup go dark |
+| `1` `2` `3` | Authority declares L1 Disruption / L2 Disaster / L3 Security (regions via the Authority inspector) |
+| `0` | Authority all-clear (L3 steps down through L1, never straight to peace) |
+| `a` | Authority broadcasts an official alert |
+| `r` | A random citizen sends a request allowed in its current mode |
+| `x` | The nearest eligible citizen accepts the oldest open request |
+| `f` | An unregistered phone sends a forged request; every neighbour drops it |
+| `space` `.` `+` `-` | Play / pause, single step, speed |
+| `v` `t` `h` `d` `Esc` | Range circles, topology packets, fit view, dark / light, deselect |
+
+Packets move one hop per tick, so the flood, the response travelling back along the recorded
+path, store-and-forward across islands and the hop-limit edge are all visible on the map.
+
 ## Documents
 
 - [Concept](docs/concept.md): vision, actors, trust model, modes, economics.

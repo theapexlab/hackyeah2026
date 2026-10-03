@@ -58,7 +58,7 @@ export const MODE_POLICIES: Readonly<Record<Mode, ModePolicy>> = {
     relayClasses: [...PEACE_ORIGIN, 'CHECK_IN', ...AUTHORITY_AND_GOSSIP],
     hopLimit: 3,
     maxHopLimit: 6,
-    ttlTicks: 60,
+    ttlTicks: 120,
     storeAndForward: false,
     phoneTopologyGossip: true,
     paymentsAllowed: true,
