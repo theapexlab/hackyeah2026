@@ -1,0 +1,17 @@
+{
+  "name": "pomoc-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @pomoc/sim dev",
+    "build": "pnpm --filter @pomoc/sim build",
+    "test": "pnpm --filter @pomoc/core test",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "typescript": "^5.6.0"
+  }
+}
