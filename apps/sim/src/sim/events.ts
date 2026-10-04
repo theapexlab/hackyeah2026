@@ -20,6 +20,8 @@ export interface EventViewActions {
   speedDown(): void;
   toggleRanges(): void;
   toggleTopologyPackets(): void;
+  toggleRequestBadges(): void;
+  toggleStoreBadges(): void;
   fitView(): void;
   toggleColorScheme(): void;
   deselect(): void;
@@ -234,6 +236,24 @@ export const DEMO_EVENTS: readonly DemoEvent[] = [
     hotkeys: ['t'],
     group: 'view',
     run: ({ view }) => view.toggleTopologyPackets(),
+  },
+  {
+    key: 'toggle-request-badges',
+    label: 'Open-request badges',
+    hint: 'Show the lime counter of open requests each phone has seen.',
+    hotkey: 'o',
+    hotkeys: ['o'],
+    group: 'view',
+    run: ({ view }) => view.toggleRequestBadges(),
+  },
+  {
+    key: 'toggle-store-badges',
+    label: 'Stored-message badges',
+    hint: 'Show the amber counter of messages a node holds in custody.',
+    hotkey: 's',
+    hotkeys: ['s'],
+    group: 'view',
+    run: ({ view }) => view.toggleStoreBadges(),
   },
   {
     key: 'fit-view',

@@ -1,6 +1,6 @@
 import { AUTHORITY_ID, messageId, nodeId, type TransitEvent } from '@pomoc/core';
 import { describe, expect, it } from 'vitest';
-import { chainEdges, collectTrail } from '../src/features/map/renderer/highlight';
+import { chainEdges, collectTrail, placeChain } from '../src/features/map/renderer/highlight';
 
 const msg = messageId('m-001#1');
 const other = messageId('m-002#1');
@@ -53,5 +53,22 @@ describe('chainEdges', () => {
     ]);
     expect(chainEdges([a])).toEqual([]);
     expect(chainEdges([AUTHORITY_ID, c, a])).toEqual([{ from: c, to: a, tick: 2 }]);
+  });
+});
+
+describe('crossing positions', () => {
+  it('keeps where each hop happened and hands it to the chain, either direction', () => {
+    const carried: TransitEvent = {
+      ...t('m-001', 'm-002', msg, 1, 'store-flush'),
+      fromPos: { x: 0, y: 0 },
+      toPos: { x: 50, y: 0 },
+    };
+    const trail = collectTrail([[carried, t('m-002', 'r-001', msg, 2)]], msg);
+    expect(trail.edges[0]).toMatchObject({ fromPos: { x: 0, y: 0 }, toPos: { x: 50, y: 0 } });
+    expect(trail.edges[1]?.fromPos).toBeUndefined();
+    expect(placeChain(chainEdges([b, a, c]), trail)).toEqual([
+      { from: b, to: a, tick: 1, fromPos: { x: 50, y: 0 }, toPos: { x: 0, y: 0 } },
+      { from: a, to: c, tick: 2 },
+    ]);
   });
 });

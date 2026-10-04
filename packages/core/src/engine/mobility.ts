@@ -1,4 +1,5 @@
 import type { EngineConfig, MobilityConfig } from '../domain/config';
+import type { NodeId } from '../domain/ids';
 import type { Node, TravelMode, WalkState, Waypoint } from '../domain/node';
 import type { Prng } from '../prng';
 import { pointInPolygon } from '../terrain/geometry';
@@ -59,7 +60,8 @@ export function travelTargets(
  * has stood still set off. Each recruit draws its speed for the trip from the mode's km/h
  * range; `spreadTicks` > 0 staggers the start. PRNG draws: per recruit one pick, the speed and
  * (with a spread) the start. A place stays empty only while every other phone is busy
- * (moving or still lingering).
+ * (moving or still lingering). Phones in `pinned` (waiting on their own request) are never
+ * recruited; a trip already under way is finished.
  */
 function fillPlaces(
   nodes: readonly Node[],
@@ -68,6 +70,7 @@ function fillPlaces(
   mobility: MobilityConfig,
   tick: number,
   spreadTicks: number,
+  pinned: ReadonlySet<NodeId> = new Set(),
 ): void {
   const mobiles = nodes.filter((n) => n.kind === 'mobile');
   const target = travelTargets(mobiles.length, mobility.shares);
@@ -75,6 +78,7 @@ function fillPlaces(
   const ready: Node[] = [];
   const still: Node[] = [];
   for (const n of mobiles) {
+    if (n.walk?.phase !== 'moving' && pinned.has(n.id)) continue;
     if (n.walk === null) still.push(n);
     else if (n.walk.phase === 'moving') moving[n.walk.mode] += 1;
     else if (n.walk.phase === 'ready') ready.push(n);
@@ -264,9 +268,9 @@ function planTrip(state: EngineState, walk: WalkState): void {
  *    otherwise becomes ready to go on;
  *  - ready: waits to be picked.
  * Then the free walking, cycling and driving places are refilled (fillPlaces), so the shares
- * hold every tick. Adjacency is marked dirty only when someone moved.
+ * hold every tick, from phones not in `pinned` (waiting on a request of their own, see activeRequesters). Adjacency is marked dirty only when someone moved.
  */
-export function moveTravellers(state: EngineState): void {
+export function moveTravellers(state: EngineState, pinned: ReadonlySet<NodeId> = new Set()): void {
   if (!state.traffic || state.terrain.graph.edges.length === 0) return;
   const tickSeconds = Math.max(0, state.config.tickSeconds);
   const tick = state.tick;
@@ -287,6 +291,6 @@ export function moveTravellers(state: EngineState): void {
     if (advanceWalker(node, walk, walk.speed * tickSeconds, tick)) moved = true;
     if (walk.cursor >= walk.path.length) walk.phase = 'lingering';
   }
-  fillPlaces(state.nodes, state.terrain, state.prng, state.config.mobility, tick, 0);
+  fillPlaces(state.nodes, state.terrain, state.prng, state.config.mobility, tick, 0, pinned);
   if (moved) state.adjacency.dirty = true;
 }

@@ -53,7 +53,7 @@ describe('request -> accept -> response -> close', () => {
     expect(response.class).toBe('BORROW');
 
     const r5 = e.step();
-    expect(r5.transits).toEqual([
+    expect(r5.transits).toMatchObject([
       {
         tick: 5,
         msgId: response.id,
@@ -102,6 +102,26 @@ describe('request -> accept -> response -> close', () => {
     expect(viewOf(e, 'm-004')).toEqual(['accepted-by-me']);
     expect(viewOf(e, 'm-005')).toEqual([]);
     expect(e.getSnapshot().nodes.find((n) => n.id === 'm-002')!.openRequests).toBe(0);
+  });
+
+  it('in L1 the CLOSE releases every custody copy of the request it passes', () => {
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 100, 0)]);
+    e.dispatch({ type: 'SetCellsUp', up: false });
+    e.step(5);
+    e.dispatch(request('m-001', 'GIVE')); // BORROW is priced: not allowed in L1
+    const requestId = lastMessageId(e);
+    e.step(3);
+    const carrying = () =>
+      ['m-001', 'm-002', 'm-003'].filter((n) =>
+        e.getNodeDetail(id(n)).store.some((s) => s.message.id === requestId),
+      );
+    expect(carrying()).toEqual(['m-001', 'm-002', 'm-003']);
+    e.dispatch({ type: 'Accept', nodeId: id('m-003'), requestId });
+    e.step(6); // response back to m-001, CLOSE out to m-003
+    expect(eventsOf(e, 'TX_CLOSED')).toHaveLength(1);
+    expect(carrying()).toEqual([]);
+    const close = e.getSnapshot().messages.find((m) => m.payload.kind === 'CLOSE');
+    expect(close?.region).toEqual({ x: 0, y: 0, r: 500 }); // the request's region
   });
 
   it('a second responder in the same tick is TX_RESPONSE_LATE and ends up taken', () => {

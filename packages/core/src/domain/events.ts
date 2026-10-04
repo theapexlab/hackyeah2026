@@ -32,6 +32,13 @@ export interface TransitEvent {
   readonly to: NodeId;
   readonly hop: number;
   readonly via: TransitVia;
+  /**
+   * Where both ends stood when the packet crossed (node-to-node transits only). Phones move,
+   * so a trail drawn from later positions would stretch a carried copy's hand-offs into
+   * edges far longer than any radio range.
+   */
+  readonly fromPos?: { readonly x: number; readonly y: number };
+  readonly toPos?: { readonly x: number; readonly y: number };
 }
 
 /** Everything observable that happened in the engine, discriminated on `type`. */

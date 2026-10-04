@@ -27,6 +27,9 @@ export interface NodeGlyphProps {
   readonly travel: TravelMode | null;
   readonly storeSize: number;
   readonly openRequests: number;
+  /** View toggles (o / s): draw the open-request and stored-message counters. */
+  readonly showRequestBadge: boolean;
+  readonly showStoreBadge: boolean;
   readonly selected: boolean;
   readonly hovered: boolean;
 }
@@ -66,6 +69,8 @@ const NodeBody = memo(function NodeBody({
   travel,
   storeSize,
   openRequests,
+  showRequestBadge,
+  showStoreBadge,
   selected,
   hovered,
 }: Omit<NodeGlyphProps, 'x' | 'y'>) {
@@ -142,7 +147,7 @@ const NodeBody = memo(function NodeBody({
             }}
           />
         )}
-        {openRequests > 0 ? (
+        {showRequestBadge && openRequests > 0 ? (
           <g className="pomoc-request-badge" transform={`translate(${-r * 0.85} ${-r * 0.85})`}>
             <circle r={6.5} style={{ fill: `var(--mantine-color-${OPEN_REQUEST_COLOR}-5)` }} />
             <text
@@ -156,7 +161,7 @@ const NodeBody = memo(function NodeBody({
             </text>
           </g>
         ) : null}
-        {storeSize > 0 ? (
+        {showStoreBadge && storeSize > 0 ? (
           <g className="pomoc-store-badge" transform={`translate(${r * 0.85} ${-r * 0.85})`}>
             <circle r={6.5} style={{ fill: 'var(--mantine-color-yellow-5)' }} />
             <text

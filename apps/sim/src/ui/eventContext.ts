@@ -28,6 +28,8 @@ export function useEventRunner(): (event: DemoEvent) => void {
         speedDown: ui.speedDown,
         toggleRanges: ui.toggleRanges,
         toggleTopologyPackets: ui.toggleTopologyPackets,
+        toggleRequestBadges: ui.toggleRequestBadges,
+        toggleStoreBadges: ui.toggleStoreBadges,
         fitView: ui.requestFit,
         toggleColorScheme: () => toggleRef.current(),
         deselect: ui.deselect,

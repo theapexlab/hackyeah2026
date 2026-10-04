@@ -4,13 +4,19 @@ import {
   arrivePulses,
   BURST_MS,
   burstsFromEvents,
+  capPulses,
   easePulse,
+  flightMs,
+  fxMs,
   ingestTransits,
   liveBursts,
   livePulses,
   liveRipples,
+  MIN_FLIGHT_MS,
+  MIN_FX_MS,
   type Pulse,
   particleAge,
+  pulseProgress,
   RIPPLE_MS,
   ripplesForArrivals,
   ripplesForTouches,
@@ -106,17 +112,47 @@ describe('pulse lifecycle', () => {
     via: 'hop',
     born: 1,
     count: 1,
+    start: 1000,
+    duration: 200,
     arrived: false,
   });
 
-  it('arrives at t >= 1, only once, and can be forced by a newer tick', () => {
-    const pulses = [make(), make()];
-    expect(arrivePulses(pulses, 0.5)).toHaveLength(0);
-    expect(arrivePulses(pulses, 1)).toHaveLength(2);
-    expect(arrivePulses(pulses, 1)).toHaveLength(0);
-    const late = [make()];
-    expect(arrivePulses(late, 0.2, true)).toHaveLength(1);
-    expect(livePulses([...pulses, ...late])).toHaveLength(0);
+  it('arrives when its own flight is over, only once; a newer tick does not cut it short', () => {
+    const pulses = [make(), { ...make(), start: 1100 }];
+    expect(pulseProgress(pulses[0]!, 1100)).toBe(0.5);
+    expect(arrivePulses(pulses, 1100)).toHaveLength(0);
+    expect(arrivePulses(pulses, 1200)).toHaveLength(1);
+    expect(arrivePulses(pulses, 1200)).toHaveLength(0);
+    expect(livePulses(pulses)).toHaveLength(1);
+    expect(arrivePulses(pulses, 1300)).toHaveLength(1);
+    expect(livePulses(pulses)).toHaveLength(0);
+  });
+
+  it('flies one tick of wall time but never under MIN_FLIGHT_MS', () => {
+    expect(flightMs(1000)).toBe(1000);
+    expect(flightMs(200)).toBe(200);
+    expect(flightMs(5)).toBe(MIN_FLIGHT_MS);
+    const [pulse] = ingestTransits([transit({})], 3, {
+      showTopology: false,
+      start: 50,
+      flightMs: 300,
+    }).pulses;
+    expect(pulse).toMatchObject({ born: 3, start: 50, duration: 300 });
+  });
+
+  it('ripples and bursts last two ticks, between MIN_FX_MS and their base length', () => {
+    expect(fxMs(RIPPLE_MS, 1000)).toBe(RIPPLE_MS);
+    expect(fxMs(RIPPLE_MS, 100)).toBe(200);
+    expect(fxMs(RIPPLE_MS, 5)).toBe(MIN_FX_MS);
+    expect(fxMs(100, 5)).toBe(100); // a base under the floor is kept
+  });
+
+  it('caps pulses in flight by priority, newest first inside a rank, order kept', () => {
+    const info = (i: number): Pulse => ({ ...make(), toId: nodeId(`m-${100 + i}`) });
+    const critical = { ...make(), cls: 'LIFE_CRITICAL' as const };
+    const pulses = [info(0), critical, info(1), info(2)];
+    expect(capPulses(pulses, 2).map((p) => p.toId)).toEqual([b, 'm-102']);
+    expect(capPulses(pulses, 10)).toBe(pulses);
   });
 
   it('spawns one arrival ripple per destination node and class', () => {

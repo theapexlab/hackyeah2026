@@ -1,7 +1,8 @@
 import type { MessageClass, NodeId, SimEngine, Snapshot, TransitEvent } from '@pomoc/core';
+import { TRANSIT_RING_SIZE } from '@pomoc/core';
 import type { StoreApi } from 'zustand';
 import { createEventCursor } from '../../../lib/eventCursor';
-import { clamp, type Transform } from '../../../lib/geometry';
+import type { Transform } from '../../../lib/geometry';
 import { nodeIndex } from '../../../sim/selectors';
 import { MODE_VIGNETTE, type Palette, withAlpha } from '../../../theme/tokens';
 import type { UiState } from '../../../ui/store';
@@ -23,19 +24,33 @@ import {
 } from './drawFx';
 import { buildTerrainPaths, drawTerrain, type TerrainPaths } from './drawTerrain';
 import { fxBus } from './fxBus';
-import { chainEdges, collectTrail, TRAIL_TICKS, type Trail, type TrailEdge } from './highlight';
+import {
+  chainEdges,
+  collectTrail,
+  placeChain,
+  TRAIL_TICKS,
+  type Trail,
+  type TrailEdge,
+} from './highlight';
 import {
   arrivePulses,
+  BURST_MS,
   type Burst,
   burstsFromEvents,
+  capPulses,
+  flightMs,
+  fxMs,
+  INJECT_RIPPLE_MS,
   ingestTransits,
   liveBursts,
   livePulses,
   liveRipples,
   type Pulse,
+  RIPPLE_MS,
   type Ripple,
   ripplesForArrivals,
   ripplesForTouches,
+  UPLINK_RIPPLE_MS,
 } from './particles';
 import { createSprites, type SpriteSet } from './sprites';
 
@@ -46,8 +61,6 @@ export interface RendererOptions {
   readonly transformRef: { readonly current: Transform };
   readonly canvas: HTMLCanvasElement;
   readonly getPalette: () => Palette;
-  /** performance.now() of the last tick advance. */
-  readonly getLastTickAt: () => number;
   /** Wall-clock ms one tick takes at the current speed. */
   readonly getTickIntervalMs: () => number;
   /**
@@ -70,12 +83,12 @@ export interface Renderer {
 
 /**
  * Owns the map canvas. Subscribes to the engine directly (no React): every step/dispatch
- * ingests the snapshot's transits into pulses and its DROPPED events into bursts, then a
- * requestAnimationFrame loop draws the scene with t = (now - lastTickAt) / tickIntervalMs.
+ * ingests the transits of every tick since the last ingest into pulses and the DROPPED events
+ * into bursts, then a requestAnimationFrame loop draws the scene. Each pulse flies for
+ * flightMs(tick interval) from its own start; ripples and bursts last fxMs(base, interval).
  */
 export function createRenderer(options: RendererOptions): Renderer {
-  const { engine, uiStore, transformRef, canvas, getPalette, getLastTickAt, getTickIntervalMs } =
-    options;
+  const { engine, uiStore, transformRef, canvas, getPalette, getTickIntervalMs } = options;
   const getSnapshot = options.getSnapshot ?? (() => engine.getSnapshot());
   let dprValue = options.getDpr?.() ?? window.devicePixelRatio ?? 1;
   const getDpr = (): number => dprValue;
@@ -136,27 +149,48 @@ export function createRenderer(options: RendererOptions): Renderer {
     const ui = uiStore.getState();
     const at = now();
 
+    const interval = Math.max(1, getTickIntervalMs());
     if (snapshot.tick !== ingestedTick) {
-      // Pulses of the previous tick land now, whatever their wall-clock progress was.
-      ripples.push(...ripplesForArrivals(arrivePulses(pulses, 1, true), at));
-      pulses = livePulses(pulses);
+      // Every tick since the last ingest, not just the newest: playback steps several ticks
+      // per frame when they are short. Earlier ticks come from the engine's transit ring
+      // (only when the snapshot is the engine's own, not the dev fixture) and start their
+      // flights as far back as they happened, so a batch still reads as a sequence.
+      const ticks: { tick: number; transits: readonly TransitEvent[] }[] = [];
+      const from = Math.max(ingestedTick + 1, snapshot.tick - TRANSIT_RING_SIZE + 1);
+      if (engine.tick === snapshot.tick && ingestedTick < snapshot.tick) {
+        for (let tick = from; tick < snapshot.tick; tick++) {
+          ticks.push({ tick, transits: engine.getTransits(tick) });
+        }
+      }
+      ticks.push({ tick: snapshot.tick, transits: snapshot.transits });
 
-      const result = ingestTransits(snapshot.transits, snapshot.tick, {
-        showTopology: ui.showTopologyPackets,
-      });
-      pulses.push(...result.pulses);
-      ripples.push(...ripplesForTouches(result.injects, 'inject', at));
-      ripples.push(...ripplesForTouches(result.uplinks, 'uplink', at));
-      if (result.injects.length > 0) {
-        fxBus.emit('inject', { tick: snapshot.tick, nodes: result.injects.length });
+      const flight = flightMs(interval);
+      let injects = 0;
+      let uplinks = 0;
+      for (const { tick, transits } of ticks) {
+        const start = at - (snapshot.tick - tick) * interval;
+        const result = ingestTransits(transits, tick, {
+          showTopology: ui.showTopologyPackets,
+          start,
+          flightMs: flight,
+        });
+        pulses.push(...result.pulses);
+        ripples.push(
+          ...ripplesForTouches(result.injects, 'inject', at, fxMs(INJECT_RIPPLE_MS, interval)),
+        );
+        ripples.push(
+          ...ripplesForTouches(result.uplinks, 'uplink', at, fxMs(UPLINK_RIPPLE_MS, interval)),
+        );
+        injects += result.injects.length;
+        uplinks += result.uplinks.length;
       }
-      if (result.uplinks.length > 0) {
-        fxBus.emit('uplink', { tick: snapshot.tick, nodes: result.uplinks.length });
-      }
+      pulses = capPulses(pulses);
+      if (injects > 0) fxBus.emit('inject', { tick: snapshot.tick, nodes: injects });
+      if (uplinks > 0) fxBus.emit('uplink', { tick: snapshot.tick, nodes: uplinks });
       ingestedTick = snapshot.tick;
     }
 
-    bursts.push(...burstsFromEvents(events.next(), at));
+    bursts.push(...burstsFromEvents(events.next(), at, undefined, fxMs(BURST_MS, interval)));
     dirty = true;
     schedule();
   };
@@ -190,7 +224,7 @@ export function createRenderer(options: RendererOptions): Renderer {
         tick: snapshot.tick,
         path: ui.highlightedPath,
         trail,
-        chain: chainEdges(path),
+        chain: placeChain(chainEdges(path), trail),
         cls: message?.class ?? null,
       };
     }
@@ -223,11 +257,12 @@ export function createRenderer(options: RendererOptions): Renderer {
     const dpr = getDpr();
     const k = transform.k;
     const interval = Math.max(1, getTickIntervalMs());
-    const t = clamp((at - getLastTickAt()) / interval, 0, 1);
 
     // Pulses that finished their flight spawn arrival ripples and retire.
-    const arrivals = arrivePulses(pulses, t);
-    if (arrivals.length > 0) ripples.push(...ripplesForArrivals(arrivals, at));
+    const arrivals = arrivePulses(pulses, at);
+    if (arrivals.length > 0) {
+      ripples.push(...ripplesForArrivals(arrivals, at, fxMs(RIPPLE_MS, interval)));
+    }
 
     const terrain = ensureTerrain(snapshot);
     const edges = ensureEdges(snapshot);
@@ -259,7 +294,7 @@ export function createRenderer(options: RendererOptions): Renderer {
       drawTrail(ctx, highlight.trail.edges, highlight.chain, nodes, highlight.color, k);
     }
 
-    drawPulses(ctx, pulses, nodes, t, sprites(palette), palette, k);
+    drawPulses(ctx, pulses, nodes, at, sprites(palette), palette, k);
     drawRipples(ctx, ripples, nodes, at, palette, k);
     drawBursts(ctx, bursts, nodes, at, palette, k);
 
