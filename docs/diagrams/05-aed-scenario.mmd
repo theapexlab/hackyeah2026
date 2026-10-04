@@ -12,8 +12,8 @@ sequenceDiagram
   K->>M: signed acceptance "fetching AED"
   M->>Q: acceptance back along path, ETA shown to Ola
   M->>O: request marked taken; CPR-trained neighbour still asked to go to Ola
-  M->>K: guidance: to the AED, then to Ola (hop distance, direction)
-  K-->>Q: Marek runs the AED over in about 90 s (staff would take 6 min)
+  M->>K: guidance: to the AED, then to Ola (Ola's voluntarily shared position)
+  K-->>Q: Marek runs the AED over in about 90 s
   Q->>M: CLOSE signed by requester, responders notified
   M->>G: event reaches a gateway when a path exists, dashboard updated
   Note over Q,G: Messages travel hop by hop. The object travels with one person.

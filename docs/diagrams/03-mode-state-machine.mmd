@@ -14,9 +14,9 @@ stateDiagram-v2
   L2 --> L1: signed all-clear or expiry
   L3 --> L1: signed all-clear or expiry (never straight to peace)
   note right of Peace
-    LEND / BORROW / GIVE / SELL / INFO
+    LEND / BORROW / GIVE / INFO
     LIFE_CRITICAL, SAFETY allowed
-    payments optional, hop limit 3
+    loan fee optional, hop limit 3
   end note
   note right of L1
     portal: read + check-in (aggregated)

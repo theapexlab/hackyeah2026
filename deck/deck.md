@@ -34,23 +34,23 @@ between a cardiac arrest and the AED on the wall
 ### Peace mode
 - Borrow a drill, get sour cream next door, hand over a parking spot
 - Reach is hop-limited: local by protocol, not by policy
-- Optional micro-payments or credits
+- Free by default; a fee only when a lender asks one for a loan
 
 ### Emergency mode
 - Signed official alerts, "I am OK" check-ins, life-critical requests
 - No operator network needed: home routers mesh over Wi-Fi, phones relay over Bluetooth LE
-- Payments off, priorities on
+- Fees off, priorities on
 
 > Runs on what the city already has: phones and ISP routers. Routers are the Wi-Fi mesh backbone, phones the Bluetooth edge.
 
 ---
-<!-- kicker: Scenario -->
+<!-- kicker: Target scenario · vision, not in the sim -->
 ## The AED, in 90 seconds
 
 1. Ola's phone sends a signed **LIFE_CRITICAL** request. It floods the mesh, top priority.
 2. The mesh knows a registered AED 40 m from Marek. He is the nearest capable responder and accepts.
 3. Everyone else sees the request is taken. The mesh guides Marek to the AED, then to Ola.
-4. Marek runs it over. One person moves, the messages did the rest. Staff would take six minutes.
+4. Marek runs it over. One person moves, the messages did the rest.
 
 > Messages travel hop by hop. The object travels with one person.
 
@@ -60,7 +60,7 @@ between a cardiac arrest and the AED on the wall
 
 | | L1 Disruption | L2 Disaster | L3 Security |
 |---|---|---|---|
-| Cause | cell outage, cable cut | flood, storm, blackout | terror, war, hybrid attack |
+| Cause | cell outage, cable cut | flood, storm, blackout | armed attack, hybrid threat |
 | Entered by | automatic or declaration | declaration only | declaration only |
 | Router portal | read + check-in | read + check-in + request | **read only** |
 | Citizen requests | life-critical, safety, "I am OK" | life-critical, safety, "I am OK" | + sealed casualty report to the authorities |
@@ -81,7 +81,7 @@ Jamming the cells can force L1 at most. Everything above it needs a signature.
 ### Example request
 Cordless drill, Sunday afternoon
 
-2 PLN · 3 hops · expires in 2 h
+2 PLN lender's fee · 3 hops · expires in 2 h
 
 Matched by Marek, 2 hops away, in 4 minutes.
 
@@ -114,19 +114,22 @@ Kraków district, static router layer plus mobile phone layer. Deterministic, pl
 - 5 L2 west, L3 east: regional declarations
 - 6 forged request rejected
 
-Live metrics: reach, delivery per class, hops, latency. Set device counts and radio range and watch the **percolation threshold**: how few nodes are enough.
+Live metrics: reach, delivery per class, hops, latency. Set device counts and radio range and see how **coverage** changes with fewer nodes.
 
-Cryptography is standard and not simulated; the simulation is about mesh behaviour. Nothing else is built. Pomóc is a vision; the simulation is the argument.
+Not simulated: cryptography (a trust flag stands in), topology gossip, rate limits, AED registry and guidance, casualty reports, router portal, Daily OK. Timers are compressed for the demo. Nothing else is built. Pomóc is a vision; the simulation is the argument.
 
 ---
 <!-- kicker: Why it is believable -->
-<!-- footer: Pomóc · concept, research and docs made with AI assistance (Claude Code; title illustration generated with Gemini); sources in the repo -->
+<!-- footer: Pomóc · concept, research, docs and simulation made with AI assistance (Claude Code; title illustration generated with Gemini); sources in the repo -->
 ## Every piece has been tried. Nobody has combined them.
 
 - **00000JAPAN** and **Comcast** already flip existing Wi-Fi open in disasters
 - **Alert RCB** is moving into mObywatel; the **EUDI wallet** is mandatory EU-wide
-- Japan's **Relay-by-Smartphone** proved phone-to-phone message relaying after 2011
+- Japan's **Relay-by-Smartphone** has tested phone-to-phone message relaying since 2011
 - Peerby: 80% of neighbourhood requests filled in 30 minutes
+
+### Funding
+Government-legalised, nonprofit software. ISPs are not paid. The only cost is the gateway servers the governance has to maintain anyway as communication hubs.
 
 ### Next
 Open protocol spec · pilot in one district with one ISP · battery-backed relay placement from the coverage model

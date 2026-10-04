@@ -1,5 +1,5 @@
 flowchart LR
-  S0["<b>Stage 0: everything up</b><br/>Peace mode<br/>messages via Authority service<br/>mesh runs in parallel, optional"]
+  S0["<b>Stage 0: everything up</b><br/>Peace mode<br/>neighbour traffic on the mesh<br/>internet only to reach the Authority"]
   S1["<b>Stage 1: mobile network down, power up</b><br/>nodes switch to emergency mode<br/>router backbone carries all traffic<br/>phones attach over Wi-Fi / BLE<br/>captive portal for phones without the app"]
   S2["<b>Stage 2: power down</b><br/>routers dark<br/>phone-only BLE mesh for hours<br/>Android relays in background, iPhones in foreground<br/>store-and-forward: people walking carry messages between islands<br/>battery-backed routers remain as anchors"]
   S3["<b>Stage 3: gateways bridge islands</b><br/>satellite / generator-backed municipal sites<br/>check-ins and LIFE_CRITICAL events reach the Authority<br/>official alerts injected back into the mesh"]

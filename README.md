@@ -26,10 +26,10 @@ ordinary Tuesday and the day the network goes dark.
 |                 | Peace mode                                             | Emergency mode                                              |
 | --------------- | ------------------------------------------------------ | ----------------------------------------------------------- |
 | Purpose         | Waste reduction, utilisation, neighbourhood efficiency | Resilient communication and life-critical resource routing  |
-| Request classes | Lend / borrow / give / sell, information               | Life-critical, safety, official alerts, "I am OK" check-ins |
-| Payments        | Optional micro-payments or credits                     | Disabled                                                    |
+| Request classes | Lend / borrow / give, local questions                  | Life-critical, safety, official alerts, "I am OK" check-ins, sealed casualty reports, local info (off at L3) |
+| Fees            | Free by default; a lender may ask a fee for a loan, settled directly between the two people | Disabled                         |
 | Reach           | Hop-limited (local by design)                          | Hop limit raised, store-and-forward enabled                 |
-| Transport       | Internet when available, mesh otherwise                | Router mesh, then phone-only degraded mesh                  |
+| Transport       | Mesh between neighbours; internet only to reach the Authority | Router mesh, then phone-only degraded mesh                  |
 | Trigger         | Default                                                | Local backhaul loss, or signed local authority declaration         |
 
 ## Actors
@@ -37,8 +37,12 @@ ordinary Tuesday and the day the network goes dark.
 - **Citizen**: registered with address and ID, holds a device key pair, can request and offer.
 - **Router / relay node**: ISP-managed CPE bound to a verified customer, relays only, cannot act.
 - **Authority**: issues citizen certificates, signs emergency declarations and official alerts.
-- **ISP**: provisions relay capability on routers remotely (existing TR-069 / TR-369 channel).
+- **ISP**: provisions relay capability on routers remotely (existing TR-069 / TR-369 channel), unpaid, as required by regulation.
 - **Gateway**: a node with backhaul (satellite, municipal fibre) bridging mesh islands to the authority.
+
+**Funding.** Pomóc is government-legalised, nonprofit software. ISPs receive no payment and
+sign no commercial contract. The only infrastructure cost is the gateway servers, which the
+governing body has to maintain anyway as its communication hubs.
 
 ## Hackathon scope
 
@@ -47,7 +51,9 @@ Nothing of the production system is built at the hackathon. The deliverable is a
 graph (routers as static nodes, phones as mobile nodes), including mode switching, controlled
 flooding with hop limits, TTL and de-duplication, and store-and-forward via moving people. Coverage planning for the city is part of the
 vision, not of the simulation. Cryptography is standard and not simulated; the
-simulation is about mesh behaviour.
+simulation is about mesh behaviour. Also not modelled: topology gossip (links come from
+device positions and radio range), per-sender rate limits, AED / resource matching,
+casualty reports and the router captive portal.
 
 ## Prototype
 
@@ -74,7 +80,9 @@ pnpm build      # static bundle in apps/sim/dist (works offline, relative base)
 ### Driving the demo
 
 The demo opens already playing, in real time: a tick is 200 ms of simulated time and takes
-200 ms at 1×; 10× and 60× compress ten minutes into one or six. Configure the world in the left panel (phones, routers,
+200 ms at 1×; 10× and 60× compress ten minutes into one or six. Protocol timers are
+shortened for the stage: losing the cells triggers L1 after 1 s instead of 10 min,
+declarations last 60 s and message TTLs are 24–60 s, so every effect shows within a minute. Configure the world in the left panel (phones, routers,
 gateways, radio ranges, seed, phones on the move) and press **Generate**. **Reset** rebuilds the same seed, so a rehearsed run
 replays exactly.
 
@@ -123,5 +131,5 @@ path, store-and-forward across islands and the hop-limit edge are all visible on
 
 ## Disclosure
 
-Concept development, research and documentation were done with AI assistance
-(Claude Code). External sources are cited in [docs/prior-art.md](docs/prior-art.md).
+Concept, research, documentation and the simulation code were made with AI assistance
+(Claude Code); the title illustration was generated with Gemini. External sources are cited in [docs/prior-art.md](docs/prior-art.md).

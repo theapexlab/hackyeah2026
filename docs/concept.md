@@ -22,7 +22,7 @@ colony, every node acts on local information, and coordinated behaviour emerges 
 | Unregistered phone | Mobile    | No          | No                 | Yes (emergency mode only) | None                                                              |
 | Home router (CPE)  | Static    | No          | No                 | Yes                       | Relay certificate issued by the ISP, bound to a verified customer |
 | Gateway            | Static    | No          | No                 | Yes, plus backhaul        | Authority or municipal certificate                                |
-| Authority          | Virtual   | Broadcasts  | No                 | No                        | Root key, embedded in every app build; signs all citizen certificates                            |
+| Authority          | Virtual   | Broadcasts  | No                 | No                        | Root key, embedded in every app build; certifies separate issuing, declaration and alert keys                            |
 
 Routers are the backbone caste: powered, static, dense in cities, and already remotely
 manageable by ISPs. Phones are the worker caste: mobile, battery-powered, and the only
@@ -98,12 +98,14 @@ certificates**:
 
 ### Peace mode (default)
 
-- Local resource sharing: lend, borrow, give away, sell, share information.
+- Local resource sharing: lend, borrow, give away, share information.
 - Requests carry a **hop limit** (default 3, max 6) and an optional geographic radius.
   Reach is local by protocol design, not by policy.
-- Optional micro-payment or credit per transaction. The mental model is **shared ownership
-  amortisation**: a tool pays itself back through community use, so a breakage after N
-  lends is already covered.
+- Free by default. A fee appears only when someone borrows for money: the lender may ask a
+  small fee for a loan, the borrower sees it before accepting, and the two settle directly
+  (BLIK, cash). Pomóc only shows the fee the lender asked; it never moves or stores money.
+  The mental model is **shared ownership amortisation**: a tool lent for small fees pays
+  itself back, so a breakage after N lends is already covered.
 - Transport: peer traffic is always mesh. The internet is only a path to authorities and
   issuers (registration, renewal, ledger, alerts, sync). Without internet, authority-bound
   messages are forwarded through the mesh to a gateway, gated by the sender's priority class.
@@ -120,22 +122,22 @@ Policy fields: `portal_write` (none / check-in / check-in + structured request),
 
 | | L1 Disruption | L2 Disaster | L3 Security |
 |---|---|---|---|
-| Typical cause | cell outage, cable cut, cyberattack on networks | flood, storm, earthquake, long blackout | terror, war, hybrid attack |
+| Typical cause | cell outage, cable cut, cyberattack on networks | flood, storm, earthquake, long blackout | armed attack, hybrid threat |
 | Entered by | local automation (no backhaul) or local authority declaration | local authority declaration | local authority declaration |
 | Router captive portal | read + check-in, aggregated | read + check-in + structured request, aggregated, flagged unverified | **read only**, one-way |
 | Citizen classes | LIFE_CRITICAL, SAFETY, CHECK_IN, CASUALTY_REPORT, INFO, free GIVE | same | LIFE_CRITICAL, SAFETY, CHECK_IN, CASUALTY_REPORT only; **INFO off** |
 | Hop limit | 10 | 15 | 6 |
 | Phone topology gossip | on | on | **off** (routers only) |
 | Radio emission | normal | normal | reduced duty cycle |
-| Payments | off | off | off |
+| Loan fees | off | off | off |
 
 Why L3 is stricter than "one-way":
 
-- **Rumour control.** Under terror or war the citizen INFO class is the disinformation
+- **Rumour control.** Under an armed or hybrid attack the citizen INFO class is the disinformation
   channel. Only Authority-signed messages propagate as information; life-critical and
   safety requests remain because they are concrete and signed.
 - **Visibility.** Phone neighbour-list gossip draws a map of where people are. In peace
-  that is the coverage map; in war it is a target map. Routers keep gossiping because
+  that is the coverage map; under attack it is a target map. Routers keep gossiping because
   their locations are known anyway.
 
 Transitions:
@@ -146,7 +148,7 @@ Transitions:
   straight to peace.
 - Declarations are regional: one district can be at L3 while the rest of the city is at L2.
 
-Common to all levels: payments disabled, priority classes on, store-and-forward on,
+Common to all levels: loan fees disabled, priority classes on, store-and-forward on,
 and the degradation ladder below.
 
 - Degradation ladder:
@@ -176,9 +178,10 @@ separate column from signed citizen check-ins.
 
 ## Message classes
 
-| Class                                     | Peace              | Emergency         | Signed by            | Payment  |
+| Class                                     | Peace              | Emergency         | Signed by            | Fee      |
 | ----------------------------------------- | ------------------ | ----------------- | -------------------- | -------- |
-| LEND / BORROW / GIVE / SELL               | Yes                | GIVE only         | Citizen              | Optional |
+| LEND / BORROW                             | Yes                | No                | Citizen              | Optional, set by the lender |
+| GIVE                                      | Yes                | Yes               | Citizen              | Never    |
 | INFO (local question or answer)           | Yes                | Yes               | Citizen              | No       |
 | LIFE_CRITICAL (AED, EpiPen, insulin, CPR) | Yes, high priority | Yes, top priority | Citizen              | Never    |
 | SAFETY (fire, flooding, structural)       | Yes                | Yes               | Citizen              | Never    |
@@ -208,11 +211,15 @@ separate column from signed citizen check-ins.
 - Identity: only a state can verify that every participant is a real, locatable person,
   which is what makes lending to strangers and trusting an emergency request possible.
 - Routers: only a regulator can ask ISPs to enable a dormant relay capability on CPE.
+- Funding: Pomóc is government-legalised, nonprofit software. ISPs are not paid and sign
+  no commercial contract: the relay capability is enabled by regulation through the ISP's
+  existing update channel. The only infrastructure cost is the gateway servers, which the
+  governing body has to maintain anyway as its communication hubs.
 - Legitimacy: emergency declarations and alerts need a root of trust that everyone
   already accepts.
-- Legal design: because the operator is the state, thresholds for occasional income,
-  liability for lent goods and data retention can be designed into the system rather
-  than litigated afterwards.
+- Legal design: because the operator is the state, liability for lent goods and data
+  retention can be designed into the system rather than litigated afterwards. Pomóc moves
+  no money, so it is neither a marketplace operator nor a payment service.
 
 ## Why not just an app, a LoRa network or satellite
 
