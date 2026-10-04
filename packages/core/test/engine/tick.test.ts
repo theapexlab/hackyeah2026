@@ -792,9 +792,7 @@ describe('liveness and inbox', () => {
     const msg = e.getSnapshot().messages[0]!;
     expect(msg.originId).toBe('m-001');
     expect(msg.payload.kind).toBe('REQUEST');
-    expect(['LEND', 'BORROW', 'GIVE', 'SELL', 'INFO', 'LIFE_CRITICAL', 'SAFETY']).toContain(
-      msg.class,
-    );
+    expect(['LEND', 'BORROW', 'GIVE', 'INFO', 'LIFE_CRITICAL', 'SAFETY']).toContain(msg.class);
     e.step();
     expect(eventsOf(e, 'ORIGINATED')).toHaveLength(1);
     e.dispatch({ type: 'SendRandomRequest', from: id('r-001') });
@@ -817,6 +815,20 @@ describe('liveness and inbox', () => {
     expect(eventsOf(e, 'DROPPED').at(-1)).toMatchObject({
       nodeId: 'm-001',
       reason: 'PRICED_IN_EMERGENCY',
+    });
+  });
+
+  it('a fee is refused in PEACE on anything but a loan', () => {
+    const e = engineFrom(line(2));
+    e.dispatch({
+      type: 'SendRequest',
+      from: id('m-001'),
+      class: 'GIVE',
+      payload: { kind: 'REQUEST', text: 'water', price: 5 },
+    });
+    expect(eventsOf(e, 'DROPPED').at(-1)).toMatchObject({
+      nodeId: 'm-001',
+      reason: 'CLASS_NOT_ALLOWED',
     });
   });
 });

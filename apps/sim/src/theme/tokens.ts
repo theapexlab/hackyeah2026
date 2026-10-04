@@ -98,7 +98,6 @@ export const CLASS_COLOR: Readonly<Record<MessageClass, MantineColorName>> = {
   LEND: 'lime',
   BORROW: 'lime',
   GIVE: 'lime',
-  SELL: 'lime',
   OFFICIAL_ALERT: 'violet',
   MODE_DECLARATION: 'violet',
   TOPOLOGY: 'gray',

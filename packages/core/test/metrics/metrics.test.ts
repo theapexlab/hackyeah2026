@@ -83,7 +83,7 @@ describe('MetricsState', () => {
       uniqueReached: 0,
       dropped: 1,
     });
-    expect(v.byClass.SELL).toEqual({ originated: 0, delivered: 0, uniqueReached: 0, dropped: 0 });
+    expect(v.byClass.LEND).toEqual({ originated: 0, delivered: 0, uniqueReached: 0, dropped: 0 });
     expect(v.dropsByReason.DUPLICATE).toBe(2);
     expect(v.dropsByReason.HOP_LIMIT).toBe(1);
     expect(v.dropsByReason.UNVERIFIABLE).toBe(0);

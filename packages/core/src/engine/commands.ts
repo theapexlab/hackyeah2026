@@ -9,6 +9,7 @@ import type { CredentialKind, Node } from '../domain/node';
 import { insideCircle } from '../graph/distance';
 import {
   CITIZEN_REQUEST_CLASSES,
+  COMMERCE_CLASSES,
   classAllowedToOriginate,
   isPriced,
   isRelayOnlyClass,
@@ -66,7 +67,7 @@ function cloneCommand(cmd: Command): Command {
  * Why a node may not originate `cls` with `payload` right now, mirroring decide()'s
  * order for the origin side: RELAY_CANNOT_ACT (relay credential, non-relay class),
  * UNVERIFIABLE (credential without the right), CLASS_NOT_ALLOWED (mode policy),
- * PRICED_IN_EMERGENCY. Null when allowed.
+ * PRICED_IN_EMERGENCY, CLASS_NOT_ALLOWED (a fee on anything but a loan). Null when allowed.
  */
 export function originRejection(
   node: Node,
@@ -78,6 +79,7 @@ export function originRejection(
   if (!canOriginate(node.credential.kind, cls)) return 'UNVERIFIABLE';
   if (!classAllowedToOriginate(policy, cls)) return 'CLASS_NOT_ALLOWED';
   if (isPriced({ payload }) && !policy.paymentsAllowed) return 'PRICED_IN_EMERGENCY';
+  if (isPriced({ payload }) && !COMMERCE_CLASSES.includes(cls)) return 'CLASS_NOT_ALLOWED';
   return null;
 }
 
@@ -130,7 +132,6 @@ export const CANNED_REQUESTS: Readonly<Record<MessageClass, readonly string[]>> 
   LEND: ['lending a ladder for the afternoon', 'spare drill to lend', 'lending a bike pump'],
   BORROW: ['need a ladder for an hour', 'anyone have a drill?', 'looking to borrow a bike pump'],
   GIVE: ['giving away a stroller', 'spare blankets to give', 'bottled water to share'],
-  SELL: ['selling a used heater', 'bike for sale, cheap', 'selling a camping stove'],
   INFO: ['is the pharmacy on Długa open?', 'which roads are flooded?', 'is the tram running?'],
   LIFE_CRITICAL: [
     'AED needed at the tram stop',
@@ -154,7 +155,6 @@ export const REQUEST_CATEGORY: Readonly<Record<MessageClass, string>> = {
   LEND: 'tools',
   BORROW: 'tools',
   GIVE: 'supplies',
-  SELL: 'goods',
   INFO: 'question',
   LIFE_CRITICAL: 'medical',
   SAFETY: 'hazard',

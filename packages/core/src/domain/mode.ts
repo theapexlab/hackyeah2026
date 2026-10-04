@@ -46,7 +46,6 @@ const PEACE_ORIGIN: readonly MessageClass[] = [
   'LEND',
   'BORROW',
   'GIVE',
-  'SELL',
   'INFO',
   'LIFE_CRITICAL',
   'SAFETY',

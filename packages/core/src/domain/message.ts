@@ -6,7 +6,6 @@ export const MESSAGE_CLASSES = [
   'LEND',
   'BORROW',
   'GIVE',
-  'SELL',
   'INFO',
   'LIFE_CRITICAL',
   'SAFETY',

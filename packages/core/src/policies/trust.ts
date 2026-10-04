@@ -4,17 +4,7 @@ import type { CredentialKind } from '../domain/node';
 /** Which classes each credential kind may originate (the trust stub replacing certificates). */
 export const ORIGIN_RIGHTS: Readonly<Record<CredentialKind, readonly MessageClass[]>> = {
   authority: ['OFFICIAL_ALERT', 'MODE_DECLARATION'],
-  citizen: [
-    'LEND',
-    'BORROW',
-    'GIVE',
-    'SELL',
-    'INFO',
-    'LIFE_CRITICAL',
-    'SAFETY',
-    'CHECK_IN',
-    'TOPOLOGY',
-  ],
+  citizen: ['LEND', 'BORROW', 'GIVE', 'INFO', 'LIFE_CRITICAL', 'SAFETY', 'CHECK_IN', 'TOPOLOGY'],
   relay: ['TOPOLOGY', 'PORTAL_SUMMARY'],
   none: [],
 };

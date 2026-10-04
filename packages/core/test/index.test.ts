@@ -171,7 +171,7 @@ describe('public surface (@pomoc/core index)', () => {
     expect(classAllowedToRelay(MODE_POLICIES.PEACE, 'CHECK_IN')).toBe(true);
     expect(PRIORITY_RANK.LIFE_CRITICAL).toBe(0);
     expect(DROP_REASONS).toHaveLength(11);
-    expect(MESSAGE_CLASSES).toHaveLength(12);
+    expect(MESSAGE_CLASSES).toHaveLength(11);
     expect(formatNodeId('mobile', 7)).toBe('m-007');
     expect(isAuthorityId(AUTHORITY_ID)).toBe(true);
   });

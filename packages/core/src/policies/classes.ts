@@ -11,7 +11,6 @@ export const PRIORITY_RANK: Readonly<Record<MessageClass, number>> = {
   LEND: 4,
   BORROW: 4,
   GIVE: 4,
-  SELL: 4,
   INFO: 4,
   TOPOLOGY: 4,
   PORTAL_SUMMARY: 4,
@@ -22,7 +21,6 @@ export const CITIZEN_REQUEST_CLASSES: readonly MessageClass[] = [
   'LEND',
   'BORROW',
   'GIVE',
-  'SELL',
   'INFO',
   'LIFE_CRITICAL',
   'SAFETY',
@@ -31,8 +29,8 @@ export const CITIZEN_REQUEST_CLASSES: readonly MessageClass[] = [
 export const AUTHORITY_CLASSES: readonly MessageClass[] = ['OFFICIAL_ALERT', 'MODE_DECLARATION'];
 /** Classes a relay certificate may originate. */
 export const RELAY_ONLY_CLASSES: readonly MessageClass[] = ['TOPOLOGY', 'PORTAL_SUMMARY'];
-/** Commerce classes that may carry a price. */
-export const COMMERCE_CLASSES: readonly MessageClass[] = ['LEND', 'BORROW', 'GIVE', 'SELL'];
+/** Classes that may carry a price: only a paid loan, set by the lender. */
+export const COMMERCE_CLASSES: readonly MessageClass[] = ['LEND', 'BORROW'];
 
 /** Reach of an urgent citizen request (LIFE_CRITICAL, SAFETY): a circle this wide around its origin. */
 export const URGENT_REQUEST_RADIUS_M = 1000;

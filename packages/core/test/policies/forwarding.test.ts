@@ -123,11 +123,11 @@ describe('decide: drop reasons', () => {
   });
 
   it('(d) CLASS_NOT_ALLOWED by the receiving mode policy', () => {
-    const sell = makeMessage({ class: 'SELL' });
-    expect(decide(makeContext({ policy: MODE_POLICIES.PEACE }), sell, makePacket(sell)).ok).toBe(
+    const lend = makeMessage({ class: 'LEND' });
+    expect(decide(makeContext({ policy: MODE_POLICIES.PEACE }), lend, makePacket(lend)).ok).toBe(
       true,
     );
-    expect(decide(makeContext({ policy: MODE_POLICIES.L1 }), sell, makePacket(sell))).toEqual({
+    expect(decide(makeContext({ policy: MODE_POLICIES.L1 }), lend, makePacket(lend))).toEqual({
       ok: false,
       reason: 'CLASS_NOT_ALLOWED',
     });
@@ -214,20 +214,20 @@ describe('decide: branch order', () => {
   });
 
   it('DUPLICATE beats CLASS_NOT_ALLOWED', () => {
-    const sell = makeMessage({ class: 'SELL' });
-    const ctx = makeContext({ policy: MODE_POLICIES.L1, seen: new Set([sell.id]) });
-    expect(decide(ctx, sell, makePacket(sell))).toEqual({ ok: false, reason: 'DUPLICATE' });
+    const lend = makeMessage({ class: 'LEND' });
+    const ctx = makeContext({ policy: MODE_POLICIES.L1, seen: new Set([lend.id]) });
+    expect(decide(ctx, lend, makePacket(lend))).toEqual({ ok: false, reason: 'DUPLICATE' });
   });
 
   it('CLASS_NOT_ALLOWED beats PRICED_IN_EMERGENCY and TTL_EXPIRED', () => {
-    const sell = makeMessage({
-      class: 'SELL',
+    const lend = makeMessage({
+      class: 'LEND',
       payload: { kind: 'REQUEST', text: 'x', price: 9 },
       createdTick: 0,
       ttlTicks: 1,
     });
     expect(
-      decide(makeContext({ policy: MODE_POLICIES.L1, tick: 50 }), sell, makePacket(sell)),
+      decide(makeContext({ policy: MODE_POLICIES.L1, tick: 50 }), lend, makePacket(lend)),
     ).toEqual({ ok: false, reason: 'CLASS_NOT_ALLOWED' });
   });
 

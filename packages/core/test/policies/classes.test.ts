@@ -28,7 +28,7 @@ describe('priority', () => {
     expect(PRIORITY_RANK.OFFICIAL_ALERT).toBe(PRIORITY_RANK.MODE_DECLARATION);
     expect(PRIORITY_RANK.OFFICIAL_ALERT).toBeLessThan(PRIORITY_RANK.SAFETY);
     expect(PRIORITY_RANK.SAFETY).toBeLessThan(PRIORITY_RANK.CHECK_IN);
-    for (const cls of ['LEND', 'BORROW', 'GIVE', 'SELL', 'INFO'] as const) {
+    for (const cls of ['LEND', 'BORROW', 'GIVE', 'INFO'] as const) {
       expect(PRIORITY_RANK.CHECK_IN).toBeLessThan(PRIORITY_RANK[cls]);
     }
     const sorted = (['INFO', 'SAFETY', 'LIFE_CRITICAL', 'CHECK_IN'] as MessageClass[]).sort(
@@ -39,11 +39,11 @@ describe('priority', () => {
 });
 
 describe('class vs mode policy', () => {
-  it('SELL is relayed in PEACE but not in any emergency level', () => {
-    expect(classAllowedToRelay(MODE_POLICIES.PEACE, 'SELL')).toBe(true);
-    expect(classAllowedToRelay(MODE_POLICIES.L1, 'SELL')).toBe(false);
-    expect(classAllowedToRelay(MODE_POLICIES.L2, 'SELL')).toBe(false);
-    expect(classAllowedToRelay(MODE_POLICIES.L3, 'SELL')).toBe(false);
+  it('LEND is relayed in PEACE but not in any emergency level', () => {
+    expect(classAllowedToRelay(MODE_POLICIES.PEACE, 'LEND')).toBe(true);
+    expect(classAllowedToRelay(MODE_POLICIES.L1, 'LEND')).toBe(false);
+    expect(classAllowedToRelay(MODE_POLICIES.L2, 'LEND')).toBe(false);
+    expect(classAllowedToRelay(MODE_POLICIES.L3, 'LEND')).toBe(false);
   });
 
   it('priced requests are detected; emergency policies disallow payments', () => {
