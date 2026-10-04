@@ -17,8 +17,9 @@ export type Command =
       readonly type: 'SetMobility';
       readonly enabled: boolean;
       readonly stepMetres?: number;
-      /** Takes effect when the next world is built (ResetWorld / Generate). */
+      readonly carSpeedFactor?: number;
       readonly walkerFraction?: number;
+      readonly driverFraction?: number;
     }
   | { readonly type: 'SetConfig'; readonly patch: Partial<EngineConfig> }
   | {

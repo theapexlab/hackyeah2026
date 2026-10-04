@@ -36,10 +36,22 @@ export interface Waypoint {
   readonly dwellTicks: number;
 }
 
-/** A walking mobile's trip state. */
+/** How a traveller gets around. */
+export type TravelMode = 'foot' | 'car';
+
+/**
+ * Where a traveller is in its cycle: moving (on a trip, or pausing in a park on the way),
+ * lingering where it arrived, then ready to set off again in whichever mode needs someone.
+ */
+export type TripPhase = 'moving' | 'lingering' | 'ready';
+
+/** A travelling mobile's state. */
 export interface WalkState {
-  /** Personal pace multiplier on MobilityConfig.stepMetres. */
-  readonly speedFactor: number;
+  /** Current mode while moving; the last one used while lingering or ready. */
+  mode: TravelMode;
+  phase: TripPhase;
+  /** Pace multiplier for this trip (walker step, or car step). */
+  speedFactor: number;
   /** Street-graph node the next trip starts from. */
   anchor: number;
   path: Waypoint[];
@@ -59,7 +71,7 @@ export interface Node {
   credential: Credential;
   backhaul: Backhaul;
   batteryBacked: boolean;
-  /** Street walking state; null for nodes that stay put. */
+  /** Travel state; null for nodes that stay put. */
   walk: WalkState | null;
   /** Per-node power override; null = derived from world grid state. */
   poweredOverride: boolean | null;
@@ -98,8 +110,8 @@ export interface NodeView {
   readonly credentialKind: CredentialKind;
   readonly backhaul: Backhaul;
   readonly batteryBacked: boolean;
-  /** Walks the streets while mobility is on. */
-  readonly walker: boolean;
+  /** On the move right now (walking or driving); null when standing still. */
+  readonly travel: TravelMode | null;
   readonly poweredOverride: boolean | null;
   readonly alive: boolean;
   readonly wanUp: boolean;

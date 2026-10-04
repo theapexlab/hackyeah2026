@@ -4,7 +4,7 @@
  * theme/icons.ts.
  */
 import type { MantineTheme } from '@mantine/core';
-import type { DropReason, EdgeQuality, MessageClass, Mode } from '@pomoc/core';
+import type { DropReason, EdgeQuality, MessageClass, Mode, TravelMode } from '@pomoc/core';
 
 /** Mantine palette names used by the simulation (subset of DefaultMantineColor). */
 export type MantineColorName =
@@ -19,9 +19,21 @@ export type MantineColorName =
   | 'violet'
   | 'gray'
   | 'green'
+  | 'pink'
   | 'dark';
 
 export type ColorScheme = 'light' | 'dark';
+
+/** Marker colour of a phone on the move. */
+export const TRAVEL_COLOR: Readonly<Record<TravelMode, MantineColorName>> = {
+  foot: 'cyan',
+  car: 'pink',
+};
+
+export const TRAVEL_LABEL: Readonly<Record<TravelMode, string>> = {
+  foot: 'walking',
+  car: 'driving',
+};
 
 /** Ambient colours: banner, node rings, region tints, vignette. */
 export const MODE_COLOR: Readonly<Record<Mode, MantineColorName>> = {

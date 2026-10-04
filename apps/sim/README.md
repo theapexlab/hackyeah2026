@@ -20,15 +20,22 @@ pnpm --filter @pomoc/sim test   # sim tests only (pure modules: particles, store
 pnpm check                      # Biome lint + format (pnpm check:fix to auto-format)
 ```
 
-Generate a world from the left panel (defaults: seed 42 = Kraków · Kazimierz, 2200 × 1300 m,
-200 phones, 120 routers, 4 satellite gateways, walking phones on), press Space, then fire
-events. Reset regenerates the same seed, so a repeated event script gives an identical log (the
-engine is deterministic). A lime badge counts the requests a phone currently sees as open; a
-cyan dot marks the walkers (10% of the phones) that follow the streets and visit parks.
+The app opens playing on the default world (seed 42 = Kraków · Kazimierz, 2200 × 1300 m,
+200 phones, 120 routers, 4 satellite gateways, phones on the move); fire events, or Generate
+another world from the left panel. Reset regenerates the same seed, so a repeated event script gives an identical log (the
+engine is deterministic). A lime badge counts the requests a phone currently sees as open.
+
+Street traffic: at every moment 10% of the phones walk (walking icon, cyan dot) and 10% drive
+(car icon, pink dot), cars 20× as fast. A traveller stops where it arrives, lingers, then sets
+off again in whichever mode is short of people, or stays put for good while a still phone
+sets off instead; the HUD counts who is walking and driving. Walkers may cross a park on the
+way, cars stay on the streets.
 
 Seed 42 ignores the Width / Height sliders (they lock and show the map's size); every other
 seed draws a procedural street grid of the configured size. Nothing is ever generated or
-dropped in the Vistula: the engine snaps a node moved into the water onto the nearest street.
+dropped in the Vistula. Phones and gateways start on streets; routers stand anywhere except the
+river and the parks. The engine moves a phone or gateway dropped in the water onto the nearest
+street, and a router dropped in the water or a park to the nearest allowed spot.
 
 Dev-only:
 
@@ -97,8 +104,8 @@ Three layers share one zoom transform on the map:
    `lib/`; `theme/tokens.ts` is pure colours and labels (icons live in `theme/icons.ts`).
 2. **SVG** (`NodesLayer` / `NodeGlyph`): one memoised glyph per node with click, double-click
    (centre), hover and tooltip. Ring colour = node mode, green outer ring = backhaul, dashed =
-   unregistered, cyan dot = walker, amber badge = store-and-forward buffer, lime badge = open
-   requests, dim = powered off.
+   unregistered, walking / car icon with a cyan / pink dot = on the move, amber badge =
+   store-and-forward buffer, lime badge = open requests, dim = powered off.
 3. **HTML overlay** (`MapOverlay`): legend, zoom buttons, Authority badge.
 
 State lives in two zustand stores. `sim/store.ts` holds the engine, its latest immutable

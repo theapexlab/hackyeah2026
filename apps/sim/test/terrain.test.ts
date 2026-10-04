@@ -1,7 +1,7 @@
 /**
  * The Kraków basemap from the app's side: the seed-42 helpers, the store keeping one
  * Terrain object per world (the renderer caches its Path2Ds on that identity), the
- * walkers being on from the first world, and the pure path builders.
+ * street traffic being on from the first world, and the pure path builders.
  */
 import {
   DEFAULT_WORLD_CONFIG,
@@ -20,6 +20,7 @@ import {
   streetWidth,
 } from '../src/features/map/renderer/drawTerrain';
 import { isKrakowSeed, terrainTitle } from '../src/lib/terrain';
+import { countNodes } from '../src/sim/selectors';
 import { createWorld, resetWorld, useSimStore } from '../src/sim/store';
 import { DEFAULT_CONFIG_DRAFT } from '../src/ui/store';
 
@@ -44,14 +45,17 @@ describe('Kraków map in the app', () => {
     expect(terrainTitle('procedural-7-1000x700')).toBeNull();
   });
 
-  it('starts on the Kraków map with the walkers on', () => {
+  it('starts on the Kraków map with a tenth walking and a tenth driving', () => {
     expect(DEFAULT_CONFIG_DRAFT.mobility).toBe(true);
     const { snapshot } = useSimStore.getState();
     expect(snapshot.terrain.id).toBe(KRAKOW_TERRAIN_ID);
     expect(snapshot.world.mobility).toBe(true);
-    expect(snapshot.nodes.filter((n) => n.walker).length).toBe(
-      Math.round(0.1 * DEFAULT_WORLD_CONFIG.mobiles),
-    );
+    const tenth = Math.round(0.1 * DEFAULT_WORLD_CONFIG.mobiles);
+    const counts = countNodes(snapshot.nodes);
+    expect([counts.walking, counts.driving]).toEqual([tenth, tenth]);
+    useSimStore.getState().engine.step(20);
+    const later = countNodes(useSimStore.getState().snapshot.nodes);
+    expect([later.walking, later.driving]).toEqual([tenth, tenth]);
   });
 
   it('seed 42 ignores the configured size and keeps one terrain object per world', () => {

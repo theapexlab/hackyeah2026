@@ -23,13 +23,21 @@ export interface WorldConfig {
   readonly gatewayBackhaul: 'satellite' | 'fibre';
 }
 
-/** Street walking for a share of the mobiles (the "walkers"). */
+/**
+ * Street traffic in generated worlds: at any moment a share of the phones walk and a share
+ * drive. A traveller who arrives stops and lingers, then rejoins in whichever mode needs
+ * someone (or stays put for good), so the shares hold while the people change.
+ */
 export interface MobilityConfig {
   readonly enabled: boolean;
-  /** Metres a walker covers per tick (scaled by its own 0.7-1.3 pace). */
+  /** Metres a walker covers per tick (each trip scales it by a 0.7-1.3 pace). */
   readonly stepMetres: number;
-  /** Share of generated mobiles that walk; applied when a world is built. */
+  /** A car covers this many walker steps per tick. */
+  readonly carSpeedFactor: number;
+  /** Share of the generated mobiles on foot at any moment. */
   readonly walkerFraction: number;
+  /** Share of the generated mobiles driving at any moment. */
+  readonly driverFraction: number;
 }
 
 /** Engine behaviour knobs; all in ticks. Changeable at runtime via SetConfig. */
@@ -77,7 +85,13 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   l3StepDownHoldTicks: 5,
   declarationDurationTicks: 300,
   nodeCapacityPerTick: 32,
-  mobility: { enabled: false, stepMetres: 5, walkerFraction: 0.1 },
+  mobility: {
+    enabled: false,
+    stepMetres: 2,
+    carSpeedFactor: 20,
+    walkerFraction: 0.1,
+    driverFraction: 0.1,
+  },
   seenCap: 10_000,
   recentEventsCap: 500,
   eventLogCap: 100_000,

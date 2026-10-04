@@ -23,8 +23,14 @@ import { formatSeed } from '../../lib/format';
 import { terrainTitle } from '../../lib/terrain';
 import { countNodes } from '../../sim/selectors';
 import { useSimStore } from '../../sim/store';
-import { KIND_ICON } from '../../theme/icons';
-import { MODE_COLOR, MODE_LABEL, resolvePalette } from '../../theme/tokens';
+import { KIND_ICON, TRAVEL_ICON } from '../../theme/icons';
+import {
+  MODE_COLOR,
+  MODE_LABEL,
+  resolvePalette,
+  TRAVEL_COLOR,
+  TRAVEL_LABEL,
+} from '../../theme/tokens';
 import { useUiStore } from '../../ui/store';
 import { AuthorityBadge } from './AuthorityBadge';
 import type { ZoomController } from './useZoom';
@@ -54,6 +60,19 @@ const Legend = memo(function Legend() {
               <Group key={kind} gap={4} wrap="nowrap">
                 <Icon size={16} stroke={1.75} />
                 <Text size="xs">{kind}</Text>
+              </Group>
+            );
+          })}
+          {(['foot', 'car'] as const).map((mode) => {
+            const Icon = TRAVEL_ICON[mode];
+            return (
+              <Group key={mode} gap={4} wrap="nowrap">
+                <Icon
+                  size={16}
+                  stroke={1.75}
+                  color={`var(--mantine-color-${TRAVEL_COLOR[mode]}-5)`}
+                />
+                <Text size="xs">{TRAVEL_LABEL[mode]}</Text>
               </Group>
             );
           })}
@@ -91,8 +110,8 @@ const Legend = memo(function Legend() {
           ))}
         </Group>
         <Text size="xs" c="dimmed">
-          green ring = backhaul · dashed = unregistered · cyan dot = walking · amber badge = stored
-          · lime badge = open request · dim = off
+          green ring = backhaul · dashed = unregistered · amber badge = stored · lime badge = open
+          request · dim = off
         </Text>
       </Stack>
     </Paper>
@@ -107,23 +126,36 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
   const showTopologyPackets = useUiStore((s) => s.showTopologyPackets);
   const toggleTopologyPackets = useUiStore((s) => s.toggleTopologyPackets);
   // Primitives only: countNodes() returns a fresh object per snapshot, which would defeat useShallow.
-  const { seed, terrainId, edges, components, total, mobiles, routers, gateways, alive } =
-    useSimStore(
-      useShallow((s) => {
-        const c = countNodes(s.snapshot.nodes);
-        return {
-          seed: s.snapshot.world.seed,
-          terrainId: s.snapshot.terrain.id,
-          edges: s.snapshot.edges.length,
-          components: s.snapshot.metrics.componentCount,
-          total: c.total,
-          mobiles: c.mobiles,
-          routers: c.routers,
-          gateways: c.gateways,
-          alive: c.alive,
-        };
-      }),
-    );
+  const {
+    seed,
+    terrainId,
+    edges,
+    components,
+    total,
+    mobiles,
+    routers,
+    gateways,
+    alive,
+    walking,
+    driving,
+  } = useSimStore(
+    useShallow((s) => {
+      const c = countNodes(s.snapshot.nodes);
+      return {
+        seed: s.snapshot.world.seed,
+        terrainId: s.snapshot.terrain.id,
+        edges: s.snapshot.edges.length,
+        components: s.snapshot.metrics.componentCount,
+        total: c.total,
+        mobiles: c.mobiles,
+        routers: c.routers,
+        gateways: c.gateways,
+        alive: c.alive,
+        walking: c.walking,
+        driving: c.driving,
+      };
+    }),
+  );
   const title = terrainTitle(terrainId);
 
   return (
@@ -133,6 +165,7 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
           <Text size="xs" ff="monospace" c="dimmed">
             {title === null ? '' : `${title} · `}seed {formatSeed(seed)} · {total} nodes ({mobiles}/
             {routers}/{gateways}) · {alive} alive · {edges} edges · {components} components
+            {walking + driving > 0 ? ` · ${walking} walking · ${driving} driving` : ''}
           </Text>
         </Paper>
       </Box>

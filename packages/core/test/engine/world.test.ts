@@ -7,8 +7,10 @@ import { resolveTerrain } from '../../src/terrain/index';
 import { KRAKOW_HEIGHT, KRAKOW_WIDTH } from '../../src/terrain/krakow';
 import {
   distanceToStreets,
+  inPark,
   inWater,
   isPlaceable,
+  isRouterSpot,
   STREET_TOLERANCE_M,
 } from '../../src/terrain/placement';
 
@@ -38,7 +40,7 @@ describe('generateWorld on the Kraków map (seed 42)', () => {
     expect(ids.at(-1)).toBe(`r-${pad(counts.routers, 3)}`);
   });
 
-  it('puts every node on a land street, never in the Vistula', () => {
+  it('keeps every node out of the Vistula: phones and gateways on streets, routers anywhere but parks', () => {
     for (const n of nodes) {
       expect(n.x).toBeGreaterThanOrEqual(0);
       expect(n.x).toBeLessThanOrEqual(KRAKOW_WIDTH);
@@ -46,8 +48,17 @@ describe('generateWorld on the Kraków map (seed 42)', () => {
       expect(n.y).toBeLessThanOrEqual(KRAKOW_HEIGHT);
       expect(inWater(terrain, n)).toBe(false);
       expect(isPlaceable(terrain, n)).toBe(true);
-      expect(distanceToStreets(terrain, n)).toBeLessThanOrEqual(STREET_TOLERANCE_M);
+      if (n.kind === 'router') {
+        expect(isRouterSpot(terrain, n), n.id).toBe(true);
+        expect(inPark(terrain, n)).toBe(-1);
+      } else {
+        expect(distanceToStreets(terrain, n)).toBeLessThanOrEqual(STREET_TOLERANCE_M);
+      }
     }
+    // routers keep their grid spots, mostly in the blocks between the streets
+    const routers = nodes.filter((n) => n.kind === 'router');
+    const offStreet = routers.filter((n) => distanceToStreets(terrain, n) > 10);
+    expect(offStreet.length).toBeGreaterThan(routers.length / 4);
   });
 
   it('assigns ranges, credentials and backhaul by kind; every node starts PEACE and empty', () => {
@@ -122,11 +133,12 @@ describe('generateWorld on a procedural map (any other seed)', () => {
   });
   const nodes = generateWorld(config, new Prng(7), terrain);
 
-  it('keeps the configured size and puts every node on a street', () => {
+  it('keeps the configured size, phones and gateways on streets and routers out of parks', () => {
     expect([config.width, config.height]).toEqual([1000, 700]);
     expect(nodes).toHaveLength(67);
     for (const n of nodes) {
-      expect(distanceToStreets(terrain, n)).toBeLessThanOrEqual(STREET_TOLERANCE_M);
+      if (n.kind === 'router') expect(isRouterSpot(terrain, n), n.id).toBe(true);
+      else expect(distanceToStreets(terrain, n)).toBeLessThanOrEqual(STREET_TOLERANCE_M);
       expect(n.x).toBeGreaterThanOrEqual(0);
       expect(n.x).toBeLessThanOrEqual(1000);
       expect(n.y).toBeGreaterThanOrEqual(0);

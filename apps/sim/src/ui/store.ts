@@ -31,7 +31,7 @@ export type ViewRequest =
 export const DEFAULT_CONFIG_DRAFT: ConfigDraft = {
   ...DEFAULT_WORLD_CONFIG,
   tickMs: DEFAULT_TICK_MS,
-  // A tenth of the phones walk the streets from the first frame.
+  // A tenth of the phones walk and a tenth drive from the first frame.
   mobility: true,
 };
 

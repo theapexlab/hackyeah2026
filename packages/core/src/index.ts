@@ -58,6 +58,8 @@ export type {
   NodeKind,
   NodeView,
   StoreEntryView,
+  TravelMode,
+  TripPhase,
   WalkState,
   Waypoint,
 } from './domain/node';
@@ -93,12 +95,13 @@ export {
 export { createEngine, createEngineFromNodes, SimEngine } from './engine/engine';
 export {
   advanceWalker,
-  assignWalkers,
-  moveWalkers,
+  assignTravellers,
+  moveTravellers,
   PARK_CHANCE,
-  resetWalk,
-  TRIP_MAX_M,
-  TRIP_MIN_M,
+  resetTrip,
+  STAY_CHANCE,
+  TRIP_BAND_M,
+  travelTargets,
 } from './engine/mobility';
 export type { OriginateOptions } from './engine/originate';
 export { createMessage, queueOrigination } from './engine/originate';
@@ -213,6 +216,9 @@ export {
   inPark,
   inWater,
   isPlaceable,
+  isRouterSpot,
+  nearestRouterSpot,
+  placeNode,
   placeOnLand,
   STREET_TOLERANCE_M,
 } from './terrain/placement';

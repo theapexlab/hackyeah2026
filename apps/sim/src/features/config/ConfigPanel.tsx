@@ -24,7 +24,8 @@ import { createWorld, resetWorld, setTickInterval } from '../../sim/store';
 import { type ConfigDraft, draftToWorldConfig, useUiStore } from '../../ui/store';
 
 const MAX_NODES = 10_000;
-const WALKER_PERCENT = Math.round(DEFAULT_ENGINE_CONFIG.mobility.walkerFraction * 100);
+const WALK_PERCENT = Math.round(DEFAULT_ENGINE_CONFIG.mobility.walkerFraction * 100);
+const DRIVE_PERCENT = Math.round(DEFAULT_ENGINE_CONFIG.mobility.driverFraction * 100);
 
 function toInt(value: number | string, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : fallback;
@@ -247,7 +248,7 @@ export function ConfigPanel() {
           onChangeEnd={(v) => setTickInterval(v)}
         />
         <Switch
-          label={`Phones walk the streets (${WALKER_PERCENT}%)`}
+          label={`Phones on the move (${WALK_PERCENT}% walk, ${DRIVE_PERCENT}% drive)`}
           size="sm"
           checked={draft.mobility}
           onChange={(event) => {

@@ -32,7 +32,7 @@ export function NodesLayer({ gRef }: NodesLayerProps) {
             alive={node.alive}
             hasBackhaul={node.hasBackhaul}
             credentialKind={node.credentialKind}
-            walker={node.walker}
+            travel={node.travel}
             storeSize={node.storeSize}
             openRequests={node.openRequests}
             selected={selectedNodeId === node.id}

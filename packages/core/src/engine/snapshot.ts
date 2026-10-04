@@ -36,7 +36,7 @@ function nodeView(state: EngineState, node: Node): NodeView {
     credentialKind: node.credential.kind,
     backhaul: node.backhaul,
     batteryBacked: node.batteryBacked,
-    walker: node.walk !== null,
+    travel: node.walk?.phase === 'moving' ? node.walk.mode : null,
     poweredOverride: node.poweredOverride,
     alive: node.alive,
     wanUp: node.wanUp,

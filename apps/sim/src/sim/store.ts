@@ -13,7 +13,7 @@ export const DEFAULT_TICK_MS = 250;
 export interface WorldOptions {
   /** Wall-clock milliseconds per tick at speed 1. */
   readonly tickMs: number;
-  /** Walkers (a share of the phones) follow the streets. */
+  /** Street traffic: a share of the phones walk and a share drive. */
   readonly mobility: boolean;
 }
 
@@ -55,7 +55,7 @@ function attach(engine: SimEngine): void {
   });
 }
 
-/** Engine config of the first world: as core's defaults, with the walkers on. */
+/** Engine config of the first world: as core's defaults, with the street traffic on. */
 export const INITIAL_ENGINE_CONFIG = {
   mobility: { ...DEFAULT_ENGINE_CONFIG.mobility, enabled: true },
 } as const;

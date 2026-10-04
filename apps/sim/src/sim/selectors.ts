@@ -46,6 +46,9 @@ export interface NodeCounts {
   readonly alive: number;
   readonly backhaul: number;
   readonly unregistered: number;
+  /** Phones on the move right now. */
+  readonly walking: number;
+  readonly driving: number;
 }
 
 const countsCache = new WeakMap<readonly NodeView[], NodeCounts>();
@@ -60,7 +63,11 @@ export function countNodes(nodes: readonly NodeView[]): NodeCounts {
   let alive = 0;
   let backhaul = 0;
   let unregistered = 0;
+  let walking = 0;
+  let driving = 0;
   for (const node of nodes) {
+    if (node.travel === 'foot') walking += 1;
+    else if (node.travel === 'car') driving += 1;
     if (node.kind === 'mobile') mobiles += 1;
     else if (node.kind === 'router') routers += 1;
     else gateways += 1;
@@ -76,6 +83,8 @@ export function countNodes(nodes: readonly NodeView[]): NodeCounts {
     alive,
     backhaul,
     unregistered,
+    walking,
+    driving,
   };
   countsCache.set(nodes, counts);
   return counts;

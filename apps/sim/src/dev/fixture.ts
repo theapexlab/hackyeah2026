@@ -182,7 +182,7 @@ export function makeFixtureSnapshot(tick = 0): Snapshot {
       credentialKind: d.credentialKind,
       backhaul: d.backhaul,
       batteryBacked: d.batteryBacked,
-      walker: false,
+      travel: null,
       poweredOverride: null,
       alive: d.alive,
       wanUp: d.alive && cellsUp,

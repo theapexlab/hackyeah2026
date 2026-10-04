@@ -14,9 +14,9 @@ import {
   isRelayOnlyClass,
 } from '../policies/classes';
 import { canOriginate } from '../policies/trust';
-import { placeOnLand } from '../terrain/placement';
+import { placeNode } from '../terrain/placement';
 import { createAuthorityMessage, inject } from './authority';
-import { resetWalk } from './mobility';
+import { resetTrip } from './mobility';
 import { createMessage, queueOrigination } from './originate';
 import type { EngineState } from './state';
 import { logEvent, recordDrop, resetWorld } from './state';
@@ -255,14 +255,14 @@ export function applyCommand(state: EngineState, input: Command): void {
     case 'MoveNode': {
       const node = state.byId.get(cmd.nodeId);
       if (node === undefined) return;
-      // Never into the river: a drop in the water lands on the nearest land street.
-      const at = placeOnLand(state.terrain, {
+      // Never into the river (routers not into parks either): see placeNode.
+      const at = placeNode(state.terrain, node.kind, {
         x: clamp(cmd.x, 0, state.world.width),
         y: clamp(cmd.y, 0, state.world.height),
       });
       node.x = at.x;
       node.y = at.y;
-      resetWalk(state.terrain, node);
+      resetTrip(state.terrain, node);
       state.adjacency.dirty = true;
       refreshTopology(state);
       return;
@@ -291,7 +291,9 @@ export function applyCommand(state: EngineState, input: Command): void {
         mobility: {
           enabled: cmd.enabled,
           stepMetres: cmd.stepMetres ?? cfg.mobility.stepMetres,
+          carSpeedFactor: cmd.carSpeedFactor ?? cfg.mobility.carSpeedFactor,
           walkerFraction: cmd.walkerFraction ?? cfg.mobility.walkerFraction,
+          driverFraction: cmd.driverFraction ?? cfg.mobility.driverFraction,
         },
       });
       return;

@@ -1,10 +1,16 @@
 import { Tooltip } from '@mantine/core';
-import type { CredentialKind, Mode, NodeId, NodeKind } from '@pomoc/core';
+import type { CredentialKind, Mode, NodeId, NodeKind, TravelMode } from '@pomoc/core';
 import { IconPlugConnectedX } from '@tabler/icons-react';
 import { type MouseEvent, memo } from 'react';
 import { formatKind } from '../../lib/format';
-import { KIND_ICON } from '../../theme/icons';
-import { MODE_LABEL, modeColorVar, OPEN_REQUEST_COLOR } from '../../theme/tokens';
+import { KIND_ICON, TRAVEL_ICON } from '../../theme/icons';
+import {
+  MODE_LABEL,
+  modeColorVar,
+  OPEN_REQUEST_COLOR,
+  TRAVEL_COLOR,
+  TRAVEL_LABEL,
+} from '../../theme/tokens';
 import { useUiStore } from '../../ui/store';
 
 export interface NodeGlyphProps {
@@ -16,7 +22,8 @@ export interface NodeGlyphProps {
   readonly alive: boolean;
   readonly hasBackhaul: boolean;
   readonly credentialKind: CredentialKind;
-  readonly walker: boolean;
+  /** On the move: the icon shows how (walking / driving), plus a coloured dot. */
+  readonly travel: TravelMode | null;
   readonly storeSize: number;
   readonly openRequests: number;
   readonly selected: boolean;
@@ -45,7 +52,7 @@ export const NodeGlyph = memo(function NodeGlyph({
   alive,
   hasBackhaul,
   credentialKind,
-  walker,
+  travel,
   storeSize,
   openRequests,
   selected,
@@ -53,7 +60,7 @@ export const NodeGlyph = memo(function NodeGlyph({
 }: NodeGlyphProps) {
   const r = RADIUS[kind];
   const iconSize = Math.round(r * 1.25);
-  const Icon = KIND_ICON[kind];
+  const Icon = travel === null ? KIND_ICON[kind] : TRAVEL_ICON[travel];
   const ring = modeColorVar(mode);
   const transform = `translate(${x} ${y})${hovered ? ' scale(1.15)' : ''}`;
   const label = [
@@ -61,7 +68,7 @@ export const NodeGlyph = memo(function NodeGlyph({
     formatKind(kind),
     MODE_LABEL[mode],
     credentialKind === 'none' ? 'unregistered' : null,
-    walker ? 'walks the streets' : null,
+    travel === null ? null : TRAVEL_LABEL[travel],
     openRequests > 0 ? `${openRequests} open request${openRequests === 1 ? '' : 's'}` : null,
     alive ? null : 'OFF',
   ]
@@ -113,14 +120,17 @@ export const NodeGlyph = memo(function NodeGlyph({
           color="var(--pomoc-node-icon)"
           style={{ pointerEvents: 'none' }}
         />
-        {walker ? (
+        {travel === null ? null : (
           <circle
             cx={r * 0.85}
             cy={r * 0.85}
             r={3}
-            style={{ fill: 'var(--mantine-color-cyan-5)', pointerEvents: 'none' }}
+            style={{
+              fill: `var(--mantine-color-${TRAVEL_COLOR[travel]}-5)`,
+              pointerEvents: 'none',
+            }}
           />
-        ) : null}
+        )}
         {openRequests > 0 ? (
           <g className="pomoc-request-badge" transform={`translate(${-r * 0.85} ${-r * 0.85})`}>
             <circle r={6.5} style={{ fill: `var(--mantine-color-${OPEN_REQUEST_COLOR}-5)` }} />

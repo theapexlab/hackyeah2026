@@ -34,7 +34,7 @@ import {
   maxMode,
   messageId,
   modeRank,
-  moveWalkers,
+  moveTravellers,
   nearestPointOnGraph,
   nodeId,
   PRIORITY_RANK,
@@ -108,7 +108,7 @@ const RUNTIME_EXPORTS = {
   resolveTerrain,
   nearestPointOnGraph,
   placeOnLand,
-  moveWalkers,
+  moveTravellers,
 };
 
 describe('public surface (@pomoc/core index)', () => {

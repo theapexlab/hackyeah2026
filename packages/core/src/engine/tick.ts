@@ -10,7 +10,7 @@ import { decide, decisionContextFor } from '../policies/forwarding';
 import { applyAllClear, applyDeclaration, evaluateMode } from '../policies/modeMachine';
 import { verifySigner } from '../policies/trust';
 import { isAuthorityBound, uplink } from './authority';
-import { moveWalkers } from './mobility';
+import { moveTravellers } from './mobility';
 import { expireStores, flushStores, forwardOrStore } from './routing';
 import type { EngineState } from './state';
 import { addSeen, logEvent, nextPacketSeq, recordDrop, TRANSIT_RING_SIZE } from './state';
@@ -294,9 +294,9 @@ function processInbox(state: EngineState, node: Node, transits: TransitEvent[]):
 
 /**
  * One simulation tick (plan A5), in this order:
- *  1 mobility (if enabled): walkers (a share of the generated mobiles) follow their street
- *    trips, id order; PRNG draws only when one plans a new trip; adjacency is marked dirty
- *    only if someone moved
+ *  1 mobility (if enabled, generated worlds only): walkers and drivers follow their street
+ *    trips in id order, arrivals linger, and freed places are refilled (moveTravellers);
+ *    adjacency is marked dirty only if someone moved
  *  2 liveness, then adjacency + components when dirty
  *  3 mode machine per alive node (WAN counters first, then evaluateMode)
  *  4 originations: pendingOriginations leave as hop-0 packets (dead origin: NODE_DOWN)
@@ -322,7 +322,7 @@ export function runTick(state: EngineState): TickResult {
   state.pendingTransits = [];
 
   // 1 mobility
-  if (state.config.mobility.enabled) moveWalkers(state);
+  if (state.config.mobility.enabled) moveTravellers(state);
 
   // 2 liveness + adjacency
   refreshTopology(state);

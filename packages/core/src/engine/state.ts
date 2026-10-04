@@ -12,7 +12,7 @@ import { MetricsState } from '../metrics/metrics';
 import { Prng } from '../prng';
 import { resolveTerrain } from '../terrain/index';
 import type { Terrain } from '../terrain/types';
-import { assignWalkers } from './mobility';
+import { assignTravellers } from './mobility';
 import { generateWorld, sortNodes } from './world';
 
 /** How many past ticks of transits getTransits(tick) can answer for. */
@@ -64,6 +64,11 @@ export interface EngineState {
   world: WorldConfig;
   /** Streets, parks and water of this world; replaced only when the world is rebuilt. */
   terrain: Terrain;
+  /**
+   * Generated worlds have street traffic (phones walking and driving); explicit node lists
+   * keep every node where it was placed.
+   */
+  traffic: boolean;
   config: EngineConfig;
   prng: Prng;
   tick: number;
@@ -113,7 +118,7 @@ function terrainFor(world: WorldConfig, nodes?: readonly Node[]): Terrain {
  * Engine config, command log, tick and seq counters survive; everything else is fresh.
  * PRNG draw order: generateWorld's draws, then one shuffle of the mobile ids for the
  * participation order (drawn for explicit node lists too), then, for generated worlds
- * only, assignWalkers' draws (one shuffle, then pace and start per walker in id order).
+ * only, assignTravellers' draws (the first walkers and drivers, their pace and start).
  */
 function populateWorld(state: EngineState, world: WorldConfig, nodes?: readonly Node[]): void {
   const terrain = terrainFor(world, nodes);
@@ -122,12 +127,11 @@ function populateWorld(state: EngineState, world: WorldConfig, nodes?: readonly 
   const list = nodes === undefined ? generateWorld(effective, prng, terrain) : sortNodes(nodes);
   const mobileIds = list.filter((n) => n.kind === 'mobile').map((n) => n.id);
   const order = prng.shuffle(mobileIds);
-  if (nodes === undefined) {
-    assignWalkers(list, terrain, prng, state.config.mobility.walkerFraction);
-  }
+  if (nodes === undefined) assignTravellers(list, terrain, prng, state.config.mobility);
 
   state.world = effective;
   state.terrain = terrain;
+  state.traffic = nodes === undefined;
   state.prng = prng;
   state.cellsUp = true;
   state.gridUp = true;
@@ -166,6 +170,7 @@ export function createState(
   const state: EngineState = {
     world,
     terrain: terrainFor(world, nodes),
+    traffic: false,
     config,
     prng: new Prng(world.seed),
     tick: 0,

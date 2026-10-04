@@ -5,6 +5,7 @@ import type { Backhaul, CredentialKind, Node, NodeKind } from '../domain/node';
 import type { Prng } from '../prng';
 import { nearestPointOnGraph, randomPointOnStreets } from '../terrain/graph';
 import { resolveTerrain } from '../terrain/index';
+import { nearestRouterSpot } from '../terrain/placement';
 import type { Pt, Terrain } from '../terrain/types';
 
 /** Static properties needed to create a node; every protocol field starts empty. */
@@ -97,15 +98,15 @@ const GATEWAY_ANCHORS: readonly (readonly [number, number])[] = [
 ];
 
 /**
- * Deterministic world generation on a terrain (default: resolveTerrain(config)). Every node
- * stands on a land street, never in the water. PRNG draw order is fixed and must not be
- * reordered:
+ * Deterministic world generation on a terrain (default: resolveTerrain(config)). Nothing
+ * stands in the water: routers anywhere outside water and parks, phones and gateways on land
+ * streets. PRNG draw order is fixed and must not be reordered:
  *
  *  1. routers, in index order: x jitter then y jitter (2 draws each). Routers sit on a
  *     grid of cols x rows cells (cols = round(sqrt(count * width/height)),
  *     rows = floor(count / cols)), jittered by up to 25% of the cell; routers beyond
- *     cols*rows are placed uniformly at random (still 2 draws). Each then snaps to the
- *     nearest land street (no draws).
+ *     cols*rows are placed uniformly at random (still 2 draws). A router that lands in
+ *     the water or a park moves to the nearest allowed spot (nearestRouterSpot, no draws).
  *  2. mobiles, in index order: a point on the land streets, uniform by street length
  *     (edge then position: 2 draws each; uniform over the area when there are no streets).
  *  3. gateways beyond the anchor list, in index order: x then y (2 draws each).
@@ -149,7 +150,7 @@ export function generateWorld(
         x = prng.float(0, width);
         y = prng.float(0, height);
       }
-      const at = snapToStreet(terrain, x, y, width, height);
+      const at = nearestRouterSpot(terrain, { x: clamp(x, 0, width), y: clamp(y, 0, height) });
       routers.push(
         createNode({
           id: formatNodeId('router', i + 1),

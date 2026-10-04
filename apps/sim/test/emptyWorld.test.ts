@@ -78,6 +78,8 @@ describe('zero-node world', () => {
       alive: 0,
       backhaul: 0,
       unregistered: 0,
+      walking: 0,
+      driving: 0,
     });
     expect(nodeIndex(snapshot.nodes).size).toBe(0);
     expect(selectNodeById(null)(useSimStore.getState())).toBeUndefined();
