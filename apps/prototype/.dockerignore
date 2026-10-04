@@ -1,0 +1,7 @@
+kotlin/
+e2e/
+spec/
+.git/
+**/build/
+**/.gradle/
+**/.kotlin/

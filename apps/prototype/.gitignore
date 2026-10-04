@@ -1,0 +1,10 @@
+.gradle/
+build/
+*.class
+.idea/
+.vscode/
+*.test
+*.out
+coverage.*
+/tmp/
+.env

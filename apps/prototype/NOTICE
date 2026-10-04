@@ -1,0 +1,13 @@
+Pomóc prototype
+Copyright 2026 Apex Lab
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+This product includes test data from third parties:
+
+- spec/testvectors/ed25519/wycheproof-sample.json: a sample of the Ed25519 test vectors from
+  Project Wycheproof (https://github.com/C2SP/wycheproof), Copyright Google LLC,
+  licensed under the Apache License, Version 2.0.
+- spec/testvectors/ed25519/rfc8032-1.json: test vector 1 from RFC 8032 section 7.1,
+  Copyright IETF Trust and the persons identified as the document authors, a code component
+  under the Revised BSD License (https://trustee.ietf.org/license-info).

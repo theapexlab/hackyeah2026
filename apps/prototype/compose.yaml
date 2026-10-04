@@ -1,0 +1,42 @@
+name: pomoc-skeleton
+
+x-service: &service
+  pull_policy: never
+  restart: "no"
+
+services:
+  broker:
+    <<: *service
+    image: pomoc/broker:${TAG:-dev}
+    networks: [radio]
+
+  relay:
+    <<: *service
+    image: pomoc/relay:${TAG:-dev}
+    command: ["-broker", "broker:7000", "-id", "relay"]
+    networks: [radio]
+    depends_on:
+      broker:
+        condition: service_healthy
+
+  server:
+    <<: *service
+    image: pomoc/euserver:${TAG:-dev}
+    ports:
+      - "127.0.0.1::8080"
+    networks: [radio, internet]
+
+  gateway:
+    <<: *service
+    image: pomoc/relay:${TAG:-dev}
+    command: ["-broker", "broker:7000", "-id", "gateway", "-ingest", "http://server:8080/ingest"]
+    networks: [radio, internet]
+    depends_on:
+      broker:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+
+networks:
+  radio: {}
+  internet: {}
