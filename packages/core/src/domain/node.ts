@@ -27,6 +27,28 @@ export interface DeclaredMode {
   declarationId: MessageId;
 }
 
+/** One stop on a walker's route; `node` is the street-graph node it stands on, if any. */
+export interface Waypoint {
+  readonly x: number;
+  readonly y: number;
+  readonly node: number | null;
+  /** Ticks to stay once reached (0: walk straight on). */
+  readonly dwellTicks: number;
+}
+
+/** A walking mobile's trip state. */
+export interface WalkState {
+  /** Personal pace multiplier on MobilityConfig.stepMetres. */
+  readonly speedFactor: number;
+  /** Street-graph node the next trip starts from. */
+  anchor: number;
+  path: Waypoint[];
+  /** Next waypoint in `path`; the trip is over when it reaches path.length. */
+  cursor: number;
+  /** Stays put while tick < dwellUntilTick. */
+  dwellUntilTick: number;
+}
+
 /** Mutable, engine-internal node state. Never exposed to the UI. */
 export interface Node {
   readonly id: NodeId;
@@ -37,6 +59,8 @@ export interface Node {
   credential: Credential;
   backhaul: Backhaul;
   batteryBacked: boolean;
+  /** Street walking state; null for nodes that stay put. */
+  walk: WalkState | null;
   /** Per-node power override; null = derived from world grid state. */
   poweredOverride: boolean | null;
   // derived every tick
@@ -74,6 +98,8 @@ export interface NodeView {
   readonly credentialKind: CredentialKind;
   readonly backhaul: Backhaul;
   readonly batteryBacked: boolean;
+  /** Walks the streets while mobility is on. */
+  readonly walker: boolean;
   readonly poweredOverride: boolean | null;
   readonly alive: boolean;
   readonly wanUp: boolean;

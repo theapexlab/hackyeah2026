@@ -1,3 +1,4 @@
+import type { Terrain } from '../terrain/types';
 import type { Command } from './commands';
 import type { DropReason, SimEvent, TransitEvent } from './events';
 import { DROP_REASONS } from './events';
@@ -87,6 +88,8 @@ export interface WorldView {
 export interface Snapshot {
   readonly tick: number;
   readonly world: WorldView;
+  /** The map (streets, parks, water); the same object until the world is rebuilt. */
+  readonly terrain: Terrain;
   /** Highest mode among alive nodes. */
   readonly globalMode: Mode;
   readonly nodes: readonly NodeView[];

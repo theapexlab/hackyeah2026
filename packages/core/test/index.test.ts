@@ -24,6 +24,8 @@ import {
   isAuthorityId,
   isEmergency,
   isPriced,
+  KRAKOW_SEED,
+  KRAKOW_TERRAIN_ID,
   MESSAGE_CLASSES,
   MESSAGE_VIEW_CAP,
   MODE_ORDER,
@@ -32,14 +34,18 @@ import {
   maxMode,
   messageId,
   modeRank,
+  moveWalkers,
+  nearestPointOnGraph,
   nodeId,
   PRIORITY_RANK,
   Prng,
+  placeOnLand,
   priorityOf,
   pruneExpiredRequestViews,
   REQUEST_CATEGORY,
   requestExpired,
   resolveEngineConfig,
+  resolveTerrain,
   resolveWorldConfig,
   SimEngine,
   TRANSIT_RING_SIZE,
@@ -97,6 +103,12 @@ const RUNTIME_EXPORTS = {
   requestExpired,
   pruneExpiredRequestViews,
   closeExpiredTransactions,
+  KRAKOW_SEED,
+  KRAKOW_TERRAIN_ID,
+  resolveTerrain,
+  nearestPointOnGraph,
+  placeOnLand,
+  moveWalkers,
 };
 
 describe('public surface (@pomoc/core index)', () => {
@@ -125,8 +137,14 @@ describe('public surface (@pomoc/core index)', () => {
     const cls: core.MessageClass = MESSAGE_CLASSES[0];
     const reason: core.DropReason = DROP_REASONS[0];
 
-    expect(snapshot.nodes).toHaveLength(67);
-    expect(snapshot.world.nodeCount).toBe(67);
+    const total =
+      DEFAULT_WORLD_CONFIG.mobiles + DEFAULT_WORLD_CONFIG.routers + DEFAULT_WORLD_CONFIG.gateways;
+    const terrain: core.Terrain = snapshot.terrain;
+    expect(snapshot.nodes).toHaveLength(total);
+    expect(snapshot.world.nodeCount).toBe(total);
+    expect(world.seed).toBe(KRAKOW_SEED);
+    expect([snapshot.world.width, snapshot.world.height]).toEqual([2200, 1300]);
+    expect(terrain.id).toBe(KRAKOW_TERRAIN_ID);
     expect(node?.id).toBe(formatNodeId('gateway', 1));
     expect(edge).toBeDefined();
     expect(message).toBeUndefined();

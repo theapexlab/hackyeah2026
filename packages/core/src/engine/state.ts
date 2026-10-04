@@ -10,6 +10,9 @@ import type { Transaction } from '../domain/transaction';
 import type { Components } from '../graph/components';
 import { MetricsState } from '../metrics/metrics';
 import { Prng } from '../prng';
+import { resolveTerrain } from '../terrain/index';
+import type { Terrain } from '../terrain/types';
+import { assignWalkers } from './mobility';
 import { generateWorld, sortNodes } from './world';
 
 /** How many past ticks of transits getTransits(tick) can answer for. */
@@ -57,7 +60,10 @@ export interface TransitRingSlot {
  *    ResetWorld too, so replay() can line a command log up with it.
  */
 export interface EngineState {
+  /** The world config with the terrain's real width/height (seed 42: 2200 x 1300 m). */
   world: WorldConfig;
+  /** Streets, parks and water of this world; replaced only when the world is rebuilt. */
+  terrain: Terrain;
   config: EngineConfig;
   prng: Prng;
   tick: number;
@@ -94,18 +100,34 @@ function emptyComponents(): Components {
 }
 
 /**
+ * The terrain a world is built on. Generated worlds use resolveTerrain (Kraków for seed
+ * 42); explicit node lists always get a procedural map of their own size, so hand-placed
+ * test coordinates keep their meaning.
+ */
+function terrainFor(world: WorldConfig, nodes?: readonly Node[]): Terrain {
+  return resolveTerrain(world, nodes === undefined ? {} : { procedural: true });
+}
+
+/**
  * (Re)populate the world part of the state from `world` (or an explicit node list).
  * Engine config, command log, tick and seq counters survive; everything else is fresh.
  * PRNG draw order: generateWorld's draws, then one shuffle of the mobile ids for the
- * participation order (drawn for explicit node lists too).
+ * participation order (drawn for explicit node lists too), then, for generated worlds
+ * only, assignWalkers' draws (one shuffle, then pace and start per walker in id order).
  */
 function populateWorld(state: EngineState, world: WorldConfig, nodes?: readonly Node[]): void {
+  const terrain = terrainFor(world, nodes);
+  const effective: WorldConfig = { ...world, width: terrain.width, height: terrain.height };
   const prng = new Prng(world.seed);
-  const list = nodes === undefined ? generateWorld(world, prng) : sortNodes(nodes);
+  const list = nodes === undefined ? generateWorld(effective, prng, terrain) : sortNodes(nodes);
   const mobileIds = list.filter((n) => n.kind === 'mobile').map((n) => n.id);
   const order = prng.shuffle(mobileIds);
+  if (nodes === undefined) {
+    assignWalkers(list, terrain, prng, state.config.mobility.walkerFraction);
+  }
 
-  state.world = world;
+  state.world = effective;
+  state.terrain = terrain;
   state.prng = prng;
   state.cellsUp = true;
   state.gridUp = true;
@@ -143,6 +165,7 @@ export function createState(
 ): EngineState {
   const state: EngineState = {
     world,
+    terrain: terrainFor(world, nodes),
     config,
     prng: new Prng(world.seed),
     tick: 0,

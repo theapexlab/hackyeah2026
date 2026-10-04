@@ -10,6 +10,7 @@ import { decide, decisionContextFor } from '../policies/forwarding';
 import { applyAllClear, applyDeclaration, evaluateMode } from '../policies/modeMachine';
 import { verifySigner } from '../policies/trust';
 import { isAuthorityBound, uplink } from './authority';
+import { moveWalkers } from './mobility';
 import { expireStores, flushStores, forwardOrStore } from './routing';
 import type { EngineState } from './state';
 import { addSeen, logEvent, nextPacketSeq, recordDrop, TRANSIT_RING_SIZE } from './state';
@@ -20,10 +21,6 @@ import {
   openTransaction,
   pruneExpiredRequestViews,
 } from './transactions';
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v));
-}
 
 /** FIFO-trim the event log to config.eventLogCap (Number.POSITIVE_INFINITY: keep everything). */
 function trimEventLog(state: EngineState): void {
@@ -139,20 +136,6 @@ export function rebuildAdjacency(state: EngineState): void {
 export function refreshTopology(state: EngineState): void {
   updateLiveness(state);
   if (state.adjacency.dirty) rebuildAdjacency(state);
-}
-
-function moveMobiles(state: EngineState): void {
-  const step = state.config.mobility.stepMetres;
-  let moved = false;
-  for (const node of state.nodes) {
-    if (node.kind !== 'mobile') continue;
-    const angle = state.prng.float(0, Math.PI * 2);
-    const dist = state.prng.float(0, step);
-    node.x = clamp(node.x + Math.cos(angle) * dist, 0, state.world.width);
-    node.y = clamp(node.y + Math.sin(angle) * dist, 0, state.world.height);
-    moved = true;
-  }
-  if (moved) state.adjacency.dirty = true;
 }
 
 function evaluateModes(state: EngineState): void {
@@ -311,7 +294,9 @@ function processInbox(state: EngineState, node: Node, transits: TransitEvent[]):
 
 /**
  * One simulation tick (plan A5), in this order:
- *  1 mobility (if enabled): every mobile steps up to stepMetres (two PRNG draws each, id order)
+ *  1 mobility (if enabled): walkers (a share of the generated mobiles) follow their street
+ *    trips, id order; PRNG draws only when one plans a new trip; adjacency is marked dirty
+ *    only if someone moved
  *  2 liveness, then adjacency + components when dirty
  *  3 mode machine per alive node (WAN counters first, then evaluateMode)
  *  4 originations: pendingOriginations leave as hop-0 packets (dead origin: NODE_DOWN)
@@ -337,7 +322,7 @@ export function runTick(state: EngineState): TickResult {
   state.pendingTransits = [];
 
   // 1 mobility
-  if (state.config.mobility.enabled) moveMobiles(state);
+  if (state.config.mobility.enabled) moveWalkers(state);
 
   // 2 liveness + adjacency
   refreshTopology(state);

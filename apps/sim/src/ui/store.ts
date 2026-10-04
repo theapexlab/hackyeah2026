@@ -31,7 +31,8 @@ export type ViewRequest =
 export const DEFAULT_CONFIG_DRAFT: ConfigDraft = {
   ...DEFAULT_WORLD_CONFIG,
   tickMs: DEFAULT_TICK_MS,
-  mobility: false,
+  // A tenth of the phones walk the streets from the first frame.
+  mobility: true,
 };
 
 /** Strip the UI-only fields so the engine gets exactly a WorldConfig. */

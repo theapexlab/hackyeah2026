@@ -119,39 +119,40 @@ describe('world commands', () => {
     e.step();
     expect(e.getSnapshot().nodes[0]!.mode).toBe('L1');
     e.dispatch({ type: 'SetMobility', enabled: true, stepMetres: 9 });
-    expect(e.config.mobility).toEqual({ enabled: true, stepMetres: 9 });
-    e.dispatch({ type: 'SetMobility', enabled: false });
-    expect(e.config.mobility).toEqual({ enabled: false, stepMetres: 9 });
+    expect(e.config.mobility).toEqual({ enabled: true, stepMetres: 9, walkerFraction: 0.1 });
+    e.dispatch({ type: 'SetMobility', enabled: false, walkerFraction: 0.3 });
+    expect(e.config.mobility).toEqual({ enabled: false, stepMetres: 9, walkerFraction: 0.3 });
     expect(e.getSnapshot().world.mobility).toBe(false);
   });
 
-  it('SetMobility moves mobiles within the area each tick (routers never) and logs adjacency changes', () => {
-    const e = createEngine({
-      seed: 42,
-      width: 200,
-      height: 100,
-      mobiles: 30,
-      routers: 2,
-      gateways: 0,
-    });
-    const pos = () => e.getSnapshot().nodes.map((n) => [n.x, n.y]);
+  it('SetMobility makes the walkers (and only them) move inside the area, logging adjacency changes', () => {
+    const e = createEngine(
+      { seed: 7, width: 600, height: 400, mobiles: 40, routers: 2, gateways: 0 },
+      { mobility: { enabled: false, stepMetres: 4, walkerFraction: 0.5 } },
+    );
+    const pos = () => new Map(e.getSnapshot().nodes.map((n) => [n.id, [n.x, n.y]] as const));
     const before = pos();
+    const walkers = e.getSnapshot().nodes.filter((n) => n.walker);
+    expect(walkers).toHaveLength(20); // round(0.5 * 40)
+    expect(walkers.every((n) => n.kind === 'mobile')).toBe(true);
     e.step(5);
     expect(pos()).toEqual(before);
     expect(eventsOf(e, 'ADJACENCY')).toHaveLength(1);
-    e.dispatch({ type: 'SetMobility', enabled: true, stepMetres: 50 });
-    e.step(20);
+    e.dispatch({ type: 'SetMobility', enabled: true, stepMetres: 30 });
+    e.step(40);
     const after = e.getSnapshot().nodes;
-    expect(after.map((n) => [n.x, n.y])).not.toEqual(before);
+    const moved = after.filter((n) => {
+      const [x, y] = before.get(n.id)!;
+      return n.x !== x || n.y !== y;
+    });
+    expect(moved.every((n) => n.walker)).toBe(true);
+    expect(moved.length).toBeGreaterThanOrEqual(18);
     for (const n of after) {
       expect(n.x).toBeGreaterThanOrEqual(0);
-      expect(n.x).toBeLessThanOrEqual(200);
+      expect(n.x).toBeLessThanOrEqual(600);
       expect(n.y).toBeGreaterThanOrEqual(0);
-      expect(n.y).toBeLessThanOrEqual(100);
+      expect(n.y).toBeLessThanOrEqual(400);
     }
-    const routersBefore = before.filter((_, i) => e.getSnapshot().nodes[i]!.kind === 'router');
-    const routersAfter = after.filter((n) => n.kind === 'router').map((n) => [n.x, n.y]);
-    expect(routersAfter).toEqual(routersBefore);
     expect(eventsOf(e, 'ADJACENCY').length).toBeGreaterThan(1);
     e.dispatch({ type: 'SetMobility', enabled: false });
     const frozen = pos();

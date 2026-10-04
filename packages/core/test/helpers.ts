@@ -20,6 +20,7 @@ export function makeNode(partial: Partial<Omit<Node, 'id'>> & { id?: string } = 
     credential: { kind: 'citizen' },
     backhaul: 'cellular',
     batteryBacked: false,
+    walk: null,
     poweredOverride: null,
     alive: true,
     wanUp: true,

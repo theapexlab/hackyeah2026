@@ -9,13 +9,22 @@ import {
   Text,
   Tooltip,
 } from '@mantine/core';
+import {
+  DEFAULT_ENGINE_CONFIG,
+  KRAKOW_HEIGHT,
+  KRAKOW_SEED,
+  KRAKOW_TERRAIN_ID,
+  KRAKOW_WIDTH,
+} from '@pomoc/core';
 import { IconDice5 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import { isKrakowSeed, terrainTitle } from '../../lib/terrain';
 import { setMobility } from '../../sim/commands';
 import { createWorld, resetWorld, setTickInterval } from '../../sim/store';
 import { type ConfigDraft, draftToWorldConfig, useUiStore } from '../../ui/store';
 
 const MAX_NODES = 10_000;
+const WALKER_PERCENT = Math.round(DEFAULT_ENGINE_CONFIG.mobility.walkerFraction * 100);
 
 function toInt(value: number | string, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : fallback;
@@ -53,6 +62,7 @@ interface RangeSliderProps {
   readonly format?: (value: number) => string;
   readonly onChange: (value: number) => void;
   readonly onChangeEnd?: (value: number) => void;
+  readonly disabled?: boolean;
 }
 
 function LabelledSlider({
@@ -64,6 +74,7 @@ function LabelledSlider({
   format = (v) => String(v),
   onChange,
   onChangeEnd,
+  disabled = false,
 }: RangeSliderProps) {
   return (
     <div>
@@ -82,6 +93,7 @@ function LabelledSlider({
         label={format}
         onChange={onChange}
         onChangeEnd={onChangeEnd}
+        disabled={disabled}
         aria-label={label}
       />
     </div>
@@ -97,6 +109,8 @@ export function ConfigPanel() {
   const deselect = useUiStore((s) => s.deselect);
   const highlightMessage = useUiStore((s) => s.highlightMessage);
   const totalNodes = draft.mobiles + draft.routers + draft.gateways;
+  // Seed 42 brings its own map and size; the sliders show it and wait for another seed.
+  const krakow = isKrakowSeed(draft.seed);
   const tooMany = totalNodes > MAX_NODES;
 
   const patchRange = (key: keyof ConfigDraft['range'], value: number): void =>
@@ -194,22 +208,31 @@ export function ConfigPanel() {
       <Section title="Area">
         <LabelledSlider
           label="Width"
-          value={draft.width}
+          value={krakow ? KRAKOW_WIDTH : draft.width}
           min={300}
           max={3000}
           step={50}
           format={metres}
+          disabled={krakow}
           onChange={(v) => patch({ width: v })}
         />
         <LabelledSlider
           label="Height"
-          value={draft.height}
+          value={krakow ? KRAKOW_HEIGHT : draft.height}
           min={300}
           max={3000}
           step={50}
           format={metres}
+          disabled={krakow}
           onChange={(v) => patch({ height: v })}
         />
+        {krakow ? (
+          <Text size="xs" c="dimmed">
+            Seed {KRAKOW_SEED} loads the {terrainTitle(KRAKOW_TERRAIN_ID)} map ({KRAKOW_WIDTH} ×{' '}
+            {KRAKOW_HEIGHT} m); no node stands in the Vistula. Other seeds draw a procedural
+            district.
+          </Text>
+        ) : null}
       </Section>
 
       <Section title="Time">
@@ -224,7 +247,7 @@ export function ConfigPanel() {
           onChangeEnd={(v) => setTickInterval(v)}
         />
         <Switch
-          label="Phones random-walk"
+          label={`Phones walk the streets (${WALKER_PERCENT}%)`}
           size="sm"
           checked={draft.mobility}
           onChange={(event) => {

@@ -128,10 +128,13 @@ export interface Palette {
   readonly edge: Readonly<Record<EdgeQuality, string>>;
   readonly edgeWidth: number;
   readonly range: string;
-  /** Procedural street grid strokes and park fills. */
+  /** Basemap: street strokes, park and water fills, district and river captions. */
   readonly streetMinor: string;
   readonly streetMajor: string;
   readonly park: string;
+  readonly water: string;
+  readonly label: string;
+  readonly waterLabel: string;
   /** Rejection bursts. */
   readonly danger: string;
   /** Exhaustion bursts (TTL, hop limit, no route). */
@@ -189,9 +192,13 @@ export function resolvePalette(theme: MantineTheme, scheme: ColorScheme): Palett
     },
     edgeWidth: 1.25,
     range: dark ? withAlpha(theme.colors.blue[4], 0.1) : withAlpha(theme.colors.blue[6], 0.08),
-    streetMinor: dark ? withAlpha(gray[6], 0.22) : withAlpha(gray[4], 0.45),
-    streetMajor: dark ? withAlpha(gray[5], 0.42) : withAlpha(gray[5], 0.7),
+    streetMinor: dark ? withAlpha(gray[6], 0.4) : withAlpha(gray[4], 0.6),
+    streetMajor: dark ? withAlpha(gray[5], 0.5) : withAlpha(gray[5], 0.75),
     park: dark ? withAlpha(theme.colors.teal[7], 0.14) : withAlpha(theme.colors.teal[3], 0.22),
+    // Light: a pale map blue over the white plane; dark: a muted navy that stays readable.
+    water: dark ? withAlpha(theme.colors.blue[8], 0.3) : withAlpha(theme.colors.blue[2], 0.85),
+    label: dark ? withAlpha(gray[5], 0.75) : withAlpha(gray[7], 0.7),
+    waterLabel: dark ? withAlpha(theme.colors.blue[4], 0.7) : withAlpha(theme.colors.blue[7], 0.75),
     danger: theme.colors.red[dark ? 5 : 7],
     muted: dark ? gray[5] : gray[6],
     highlight: dark ? '#ffffff' : gray[9],

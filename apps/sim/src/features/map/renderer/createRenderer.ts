@@ -21,7 +21,6 @@ import {
   drawTrail,
   drawVignette,
 } from './drawFx';
-import { buildStreetGrid, drawStreetGrid, type StreetGrid, streetGridStale } from './drawGrid';
 import { fxBus } from './fxBus';
 import { chainEdges, collectTrail, TRAIL_TICKS, type Trail, type TrailEdge } from './highlight';
 import {
@@ -38,6 +37,7 @@ import {
   ripplesForTouches,
 } from './particles';
 import { createSprites, type SpriteSet } from './sprites';
+import { buildTerrainPaths, drawTerrain, type TerrainPaths } from './drawTerrain';
 
 export interface RendererOptions {
   readonly engine: SimEngine;
@@ -93,7 +93,7 @@ export function createRenderer(options: RendererOptions): Renderer {
   let destroyed = false;
 
   let edgeCache: EdgePaths | null = null;
-  let gridCache: StreetGrid | null = null;
+  let terrainCache: TerrainPaths | null = null;
   let spriteCache: { palette: Palette; sprites: SpriteSet } | null = null;
   let trailCache: {
     msgId: string;
@@ -116,12 +116,12 @@ export function createRenderer(options: RendererOptions): Renderer {
 
   const now = (): number => performance.now();
 
-  const ensureGrid = (snapshot: Snapshot): StreetGrid => {
-    if (gridCache === null || streetGridStale(gridCache, snapshot.world)) {
-      const { seed, width, height } = snapshot.world;
-      gridCache = buildStreetGrid(seed, width, height);
+  // Keyed on object identity: core keeps one Terrain per world, so this rebuilds on Generate only.
+  const ensureTerrain = (snapshot: Snapshot): TerrainPaths => {
+    if (terrainCache === null || terrainCache.terrain !== snapshot.terrain) {
+      terrainCache = buildTerrainPaths(snapshot.terrain);
     }
-    return gridCache;
+    return terrainCache;
   };
 
   const ensureEdges = (snapshot: Snapshot): EdgePaths => {
@@ -229,7 +229,7 @@ export function createRenderer(options: RendererOptions): Renderer {
     const arrivals = arrivePulses(pulses, t);
     if (arrivals.length > 0) ripples.push(...ripplesForArrivals(arrivals, at));
 
-    const grid = ensureGrid(snapshot);
+    const terrain = ensureTerrain(snapshot);
     const edges = ensureEdges(snapshot);
     const nodes = nodeIndex(snapshot.nodes);
 
@@ -237,7 +237,7 @@ export function createRenderer(options: RendererOptions): Renderer {
     drawBackground(ctx, canvas.width / dpr, canvas.height / dpr, palette);
 
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * transform.x, dpr * transform.y);
-    drawStreetGrid(ctx, grid, palette, k);
+    drawTerrain(ctx, terrain, palette, k);
     drawRegionTints(ctx, snapshot.declarations, snapshot.world, palette, k);
     if (ui.showRanges) drawRangeCircles(ctx, snapshot.nodes, palette, k);
 

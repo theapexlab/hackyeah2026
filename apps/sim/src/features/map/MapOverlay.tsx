@@ -1,4 +1,14 @@
-import { ActionIcon, Box, Group, Paper, Stack, Text, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Box,
+  Group,
+  Paper,
+  Stack,
+  Text,
+  Tooltip,
+  useComputedColorScheme,
+  useMantineTheme,
+} from '@mantine/core';
 import type { Mode } from '@pomoc/core';
 import {
   IconAffiliate,
@@ -7,13 +17,14 @@ import {
   IconZoomIn,
   IconZoomOut,
 } from '@tabler/icons-react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { formatSeed } from '../../lib/format';
+import { terrainTitle } from '../../lib/terrain';
 import { countNodes } from '../../sim/selectors';
 import { useSimStore } from '../../sim/store';
 import { KIND_ICON } from '../../theme/icons';
-import { MODE_COLOR, MODE_LABEL } from '../../theme/tokens';
+import { MODE_COLOR, MODE_LABEL, resolvePalette } from '../../theme/tokens';
 import { useUiStore } from '../../ui/store';
 import { AuthorityBadge } from './AuthorityBadge';
 import type { ZoomController } from './useZoom';
@@ -26,6 +37,13 @@ const MODES: readonly Mode[] = ['PEACE', 'L1', 'L2', 'L3'];
 
 /** Static; memoised so a parent render never cascades into it. */
 const Legend = memo(function Legend() {
+  const theme = useMantineTheme();
+  const scheme = useComputedColorScheme('dark');
+  const palette = useMemo(() => resolvePalette(theme, scheme), [theme, scheme]);
+  const swatches = [
+    ['park', palette.park],
+    ['river (no nodes)', palette.water],
+  ] as const;
   return (
     <Paper shadow="sm" radius="md" p="xs" withBorder style={{ pointerEvents: 'auto' }}>
       <Stack gap={4}>
@@ -55,9 +73,26 @@ const Legend = memo(function Legend() {
             </Group>
           ))}
         </Group>
+        <Group gap="sm">
+          {swatches.map(([label, color]) => (
+            <Group key={label} gap={4} wrap="nowrap">
+              <Box
+                w={14}
+                h={10}
+                style={{
+                  borderRadius: 2,
+                  // the canvas paints these translucent tokens over the opaque world plane
+                  background: `linear-gradient(${color}, ${color}), ${palette.worldFill}`,
+                  border: '1px solid var(--mantine-color-default-border)',
+                }}
+              />
+              <Text size="xs">{label}</Text>
+            </Group>
+          ))}
+        </Group>
         <Text size="xs" c="dimmed">
-          green ring = backhaul · dashed = unregistered · amber badge = stored · lime badge = open
-          request · dim = off
+          green ring = backhaul · dashed = unregistered · cyan dot = walking · amber badge = stored
+          · lime badge = open request · dim = off
         </Text>
       </Stack>
     </Paper>
@@ -72,28 +107,31 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
   const showTopologyPackets = useUiStore((s) => s.showTopologyPackets);
   const toggleTopologyPackets = useUiStore((s) => s.toggleTopologyPackets);
   // Primitives only: countNodes() returns a fresh object per snapshot, which would defeat useShallow.
-  const { seed, edges, components, total, mobiles, routers, gateways, alive } = useSimStore(
-    useShallow((s) => {
-      const c = countNodes(s.snapshot.nodes);
-      return {
-        seed: s.snapshot.world.seed,
-        edges: s.snapshot.edges.length,
-        components: s.snapshot.metrics.componentCount,
-        total: c.total,
-        mobiles: c.mobiles,
-        routers: c.routers,
-        gateways: c.gateways,
-        alive: c.alive,
-      };
-    }),
-  );
+  const { seed, terrainId, edges, components, total, mobiles, routers, gateways, alive } =
+    useSimStore(
+      useShallow((s) => {
+        const c = countNodes(s.snapshot.nodes);
+        return {
+          seed: s.snapshot.world.seed,
+          terrainId: s.snapshot.terrain.id,
+          edges: s.snapshot.edges.length,
+          components: s.snapshot.metrics.componentCount,
+          total: c.total,
+          mobiles: c.mobiles,
+          routers: c.routers,
+          gateways: c.gateways,
+          alive: c.alive,
+        };
+      }),
+    );
+  const title = terrainTitle(terrainId);
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
       <Box style={{ position: 'absolute', top: 12, left: 12 }}>
         <Paper shadow="sm" radius="md" px="sm" py={6} withBorder>
           <Text size="xs" ff="monospace" c="dimmed">
-            seed {formatSeed(seed)} · {total} nodes ({mobiles}/{routers}/{gateways}) · {alive} alive
+            {title === null ? '' : `${title} · `}seed {formatSeed(seed)} · {total} nodes ({mobiles}/{routers}/{gateways}) · {alive} alive
             · {edges} edges · {components} components
           </Text>
         </Paper>

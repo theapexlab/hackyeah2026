@@ -4,3 +4,5 @@ dist/
 coverage/
 *.log
 .vite/
+# Dev-only map reference screenshots (third-party imagery, never committed)
+apps/sim/dev-ref/

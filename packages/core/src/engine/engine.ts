@@ -158,8 +158,10 @@ export function createEngine(world: Partial<WorldConfig>, cfg?: Partial<EngineCo
 /**
  * Build an engine around a hand-made node list instead of a generated world (tests,
  * custom layouts). Nodes are sorted by id and owned by the engine; `world` supplies the
- * area and seed (defaults otherwise). replay() cannot rebuild such an engine, and
- * ResetWorld on it generates a world from its config.
+ * area and seed (defaults otherwise). The map is always a procedural one of that size
+ * (never Kraków, even for seed 42) and no node walks unless the caller sets `walk`.
+ * replay() cannot rebuild such an engine, and ResetWorld on it generates a world from its
+ * config.
  */
 export function createEngineFromNodes(
   nodes: readonly Node[],

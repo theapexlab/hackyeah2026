@@ -23,10 +23,13 @@ export interface WorldConfig {
   readonly gatewayBackhaul: 'satellite' | 'fibre';
 }
 
-/** Random-walk settings for mobiles. */
+/** Street walking for a share of the mobiles (the "walkers"). */
 export interface MobilityConfig {
   readonly enabled: boolean;
+  /** Metres a walker covers per tick (scaled by its own 0.7-1.3 pace). */
   readonly stepMetres: number;
+  /** Share of generated mobiles that walk; applied when a world is built. */
+  readonly walkerFraction: number;
 }
 
 /** Engine behaviour knobs; all in ticks. Changeable at runtime via SetConfig. */
@@ -57,11 +60,11 @@ export interface EngineConfig {
 
 export const DEFAULT_WORLD_CONFIG: WorldConfig = {
   seed: 42,
-  width: 1000,
-  height: 700,
-  mobiles: 40,
-  routers: 25,
-  gateways: 2,
+  width: 2200,
+  height: 1300,
+  mobiles: 200,
+  routers: 120,
+  gateways: 4,
   range: { mobile: 100, router: 200, gateway: 220 },
   unregisteredFraction: 0.1,
   batteryBackedRouterFraction: 0.1,
@@ -74,7 +77,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   l3StepDownHoldTicks: 5,
   declarationDurationTicks: 300,
   nodeCapacityPerTick: 32,
-  mobility: { enabled: false, stepMetres: 4 },
+  mobility: { enabled: false, stepMetres: 5, walkerFraction: 0.1 },
   seenCap: 10_000,
   recentEventsCap: 500,
   eventLogCap: 100_000,

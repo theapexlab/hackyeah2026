@@ -1,5 +1,6 @@
 import {
   createEngine,
+  DEFAULT_ENGINE_CONFIG,
   DEFAULT_WORLD_CONFIG,
   type SimEngine,
   type Snapshot,
@@ -12,7 +13,7 @@ export const DEFAULT_TICK_MS = 250;
 export interface WorldOptions {
   /** Wall-clock milliseconds per tick at speed 1. */
   readonly tickMs: number;
-  /** Random walk for mobiles. */
+  /** Walkers (a share of the phones) follow the streets. */
   readonly mobility: boolean;
 }
 
@@ -54,8 +55,13 @@ function attach(engine: SimEngine): void {
   });
 }
 
+/** Engine config of the first world: as core's defaults, with the walkers on. */
+export const INITIAL_ENGINE_CONFIG = {
+  mobility: { ...DEFAULT_ENGINE_CONFIG.mobility, enabled: true },
+} as const;
+
 export const useSimStore = create<SimState>()(() => {
-  const engine = createEngine(DEFAULT_WORLD_CONFIG);
+  const engine = createEngine(DEFAULT_WORLD_CONFIG, INITIAL_ENGINE_CONFIG);
   return {
     engine,
     snapshot: engine.getSnapshot(),

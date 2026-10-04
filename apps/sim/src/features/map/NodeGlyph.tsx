@@ -16,6 +16,7 @@ export interface NodeGlyphProps {
   readonly alive: boolean;
   readonly hasBackhaul: boolean;
   readonly credentialKind: CredentialKind;
+  readonly walker: boolean;
   readonly storeSize: number;
   readonly openRequests: number;
   readonly selected: boolean;
@@ -44,6 +45,7 @@ export const NodeGlyph = memo(function NodeGlyph({
   alive,
   hasBackhaul,
   credentialKind,
+  walker,
   storeSize,
   openRequests,
   selected,
@@ -59,6 +61,7 @@ export const NodeGlyph = memo(function NodeGlyph({
     formatKind(kind),
     MODE_LABEL[mode],
     credentialKind === 'none' ? 'unregistered' : null,
+    walker ? 'walks the streets' : null,
     openRequests > 0 ? `${openRequests} open request${openRequests === 1 ? '' : 's'}` : null,
     alive ? null : 'OFF',
   ]
@@ -110,6 +113,14 @@ export const NodeGlyph = memo(function NodeGlyph({
           color="var(--pomoc-node-icon)"
           style={{ pointerEvents: 'none' }}
         />
+        {walker ? (
+          <circle
+            cx={r * 0.85}
+            cy={r * 0.85}
+            r={3}
+            style={{ fill: 'var(--mantine-color-cyan-5)', pointerEvents: 'none' }}
+          />
+        ) : null}
         {openRequests > 0 ? (
           <g className="pomoc-request-badge" transform={`translate(${-r * 0.85} ${-r * 0.85})`}>
             <circle r={6.5} style={{ fill: `var(--mantine-color-${OPEN_REQUEST_COLOR}-5)` }} />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { nodeIndex } from '../../sim/selectors';
 import { useSimStore } from '../../sim/store';
@@ -13,6 +13,13 @@ interface Size {
   readonly width: number;
   readonly height: number;
 }
+
+// Dev-only tracing aid: ?ref=1 lays the Kraków reference screenshot under the nodes.
+// Dead code in production builds, so dev/RefOverlay.tsx is never bundled.
+const RefOverlay =
+  import.meta.env.DEV && new URLSearchParams(window.location.search).get('ref') === '1'
+    ? lazy(() => import('../../dev/RefOverlay').then((m) => ({ default: m.RefOverlay })))
+    : null;
 
 /** The district plane: canvas (moving things) + SVG (clickable nodes) + HTML overlay, one shared transform. */
 export function MapView() {
@@ -78,6 +85,11 @@ export function MapView() {
       }}
     >
       <CanvasLayer width={size.width} height={size.height} zoom={zoom} />
+      {RefOverlay === null ? null : (
+        <Suspense fallback={null}>
+          <RefOverlay zoom={zoom} />
+        </Suspense>
+      )}
       <NodesLayer gRef={gRef} />
       <MapOverlay zoom={zoom} />
     </div>

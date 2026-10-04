@@ -3,6 +3,9 @@ import type { NodeId } from '../domain/ids';
 import { formatNodeId } from '../domain/ids';
 import type { Backhaul, CredentialKind, Node, NodeKind } from '../domain/node';
 import type { Prng } from '../prng';
+import { nearestPointOnGraph, randomPointOnStreets } from '../terrain/graph';
+import { resolveTerrain } from '../terrain/index';
+import type { Pt, Terrain } from '../terrain/types';
 
 /** Static properties needed to create a node; every protocol field starts empty. */
 export interface NodeInit {
@@ -30,6 +33,7 @@ export function createNode(init: NodeInit): Node {
     credential: { kind: init.credentialKind },
     backhaul: init.backhaul,
     batteryBacked: init.batteryBacked ?? false,
+    walk: null,
     poweredOverride: null,
     alive: true,
     wanUp: true,
@@ -68,6 +72,13 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
+/** The nearest point of a land street, or the point itself (clamped) on a map without streets. */
+function snapToStreet(terrain: Terrain, x: number, y: number, width: number, height: number): Pt {
+  const p = { x: clamp(x, 0, width), y: clamp(y, 0, height) };
+  const q = nearestPointOnGraph(terrain.graph, p, { land: true });
+  return q === null ? p : { x: q.x, y: q.y };
+}
+
 /**
  * Gateway positions as fractions of the area, taken in order: the four corners
  * (inset 12%), then the centre, then the edge midpoints. Gateways beyond the list
@@ -86,15 +97,19 @@ const GATEWAY_ANCHORS: readonly (readonly [number, number])[] = [
 ];
 
 /**
- * Deterministic world generation. PRNG draw order is fixed and must not be reordered:
+ * Deterministic world generation on a terrain (default: resolveTerrain(config)). Every node
+ * stands on a land street, never in the water. PRNG draw order is fixed and must not be
+ * reordered:
  *
  *  1. routers, in index order: x jitter then y jitter (2 draws each). Routers sit on a
  *     grid of cols x rows cells (cols = round(sqrt(count * width/height)),
  *     rows = floor(count / cols)), jittered by up to 25% of the cell; routers beyond
- *     cols*rows are placed uniformly at random (still 2 draws).
- *  2. mobiles, in index order: x then y, uniform over the area (2 draws each).
+ *     cols*rows are placed uniformly at random (still 2 draws). Each then snaps to the
+ *     nearest land street (no draws).
+ *  2. mobiles, in index order: a point on the land streets, uniform by street length
+ *     (edge then position: 2 draws each; uniform over the area when there are no streets).
  *  3. gateways beyond the anchor list, in index order: x then y (2 draws each).
- *     Anchored gateways draw nothing.
+ *     Anchored gateways draw nothing. Every gateway snaps to the nearest land street.
  *  4. one shuffle of the mobile indices; the first round(unregisteredFraction * n)
  *     get credential 'none', the rest 'citizen'.
  *  5. one shuffle of the router indices; the first round(batteryBackedRouterFraction * n)
@@ -104,7 +119,11 @@ const GATEWAY_ANCHORS: readonly (readonly [number, number])[] = [
  * PEACE, alive, with empty protocol state. Mobiles have 'cellular' backhaul, routers
  * 'none', gateways config.gatewayBackhaul; routers and gateways carry a relay credential.
  */
-export function generateWorld(config: WorldConfig, prng: Prng): Node[] {
+export function generateWorld(
+  config: WorldConfig,
+  prng: Prng,
+  terrain: Terrain = resolveTerrain(config),
+): Node[] {
   const { width, height } = config;
   const nRouters = Math.max(0, Math.floor(config.routers));
   const nMobiles = Math.max(0, Math.floor(config.mobiles));
@@ -130,12 +149,13 @@ export function generateWorld(config: WorldConfig, prng: Prng): Node[] {
         x = prng.float(0, width);
         y = prng.float(0, height);
       }
+      const at = snapToStreet(terrain, x, y, width, height);
       routers.push(
         createNode({
           id: formatNodeId('router', i + 1),
           kind: 'router',
-          x: clamp(x, 0, width),
-          y: clamp(y, 0, height),
+          x: at.x,
+          y: at.y,
           range: config.range.router,
           credentialKind: 'relay',
           backhaul: 'none',
@@ -147,14 +167,16 @@ export function generateWorld(config: WorldConfig, prng: Prng): Node[] {
   // 2. mobiles
   const mobiles: Node[] = [];
   for (let i = 0; i < nMobiles; i++) {
-    const x = prng.float(0, width);
-    const y = prng.float(0, height);
+    const at = randomPointOnStreets(terrain.graph, prng, { land: true }) ?? {
+      x: prng.float(0, width),
+      y: prng.float(0, height),
+    };
     mobiles.push(
       createNode({
         id: formatNodeId('mobile', i + 1),
         kind: 'mobile',
-        x,
-        y,
+        x: at.x,
+        y: at.y,
         range: config.range.mobile,
         credentialKind: 'citizen',
         backhaul: 'cellular',
@@ -168,12 +190,13 @@ export function generateWorld(config: WorldConfig, prng: Prng): Node[] {
     const anchor = GATEWAY_ANCHORS[i];
     const x = anchor === undefined ? prng.float(0, width) : anchor[0] * width;
     const y = anchor === undefined ? prng.float(0, height) : anchor[1] * height;
+    const at = snapToStreet(terrain, x, y, width, height);
     gateways.push(
       createNode({
         id: formatNodeId('gateway', i + 1),
         kind: 'gateway',
-        x,
-        y,
+        x: at.x,
+        y: at.y,
         range: config.range.gateway,
         credentialKind: 'relay',
         backhaul: config.gatewayBackhaul,

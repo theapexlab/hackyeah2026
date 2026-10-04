@@ -58,6 +58,8 @@ export type {
   NodeKind,
   NodeView,
   StoreEntryView,
+  WalkState,
+  Waypoint,
 } from './domain/node';
 export type {
   AuthorityReceipt,
@@ -89,6 +91,15 @@ export {
   REQUEST_CATEGORY,
 } from './engine/commands';
 export { createEngine, createEngineFromNodes, SimEngine } from './engine/engine';
+export {
+  advanceWalker,
+  assignWalkers,
+  moveWalkers,
+  PARK_CHANCE,
+  resetWalk,
+  TRIP_MAX_M,
+  TRIP_MIN_M,
+} from './engine/mobility';
 export type { OriginateOptions } from './engine/originate';
 export { createMessage, queueOrigination } from './engine/originate';
 export { expireStores, flushStores, forwardOrStore } from './engine/routing';
@@ -163,3 +174,56 @@ export type { ModeEvaluation } from './policies/modeMachine';
 export { applyAllClear, applyDeclaration, evaluateMode } from './policies/modeMachine';
 export { canOriginate, ORIGIN_RIGHTS, verifySigner } from './policies/trust';
 export { Prng } from './prng';
+export type { Bbox, SegmentProjection } from './terrain/geometry';
+export {
+  distanceToPolygonBoundary,
+  nearestPointOnSegment,
+  pointInPolygon,
+  polygonBbox,
+  polygonCentroid,
+  segmentIntersection,
+  segmentIntersectsPolygon,
+  segmentsCross,
+} from './terrain/geometry';
+export type { GraphProjection } from './terrain/graph';
+export {
+  buildStreetGraph,
+  DEFAULT_SNAP_M,
+  nearestPointOnGraph,
+  randomPointInPolygon,
+  randomPointOnStreets,
+  shortestPath,
+} from './terrain/graph';
+export {
+  buildTerrain,
+  computeParkGates,
+  PARK_GATE_RADIUS_M,
+  resolveTerrain,
+} from './terrain/index';
+export {
+  KRAKOW_HEIGHT,
+  KRAKOW_SEED,
+  KRAKOW_TERRAIN_ID,
+  KRAKOW_WIDTH,
+  krakowTerrainSource,
+} from './terrain/krakow';
+export {
+  distanceToParks,
+  distanceToStreets,
+  inPark,
+  inWater,
+  isPlaceable,
+  placeOnLand,
+  STREET_TOLERANCE_M,
+} from './terrain/placement';
+export { proceduralTerrain } from './terrain/procedural';
+export type {
+  GraphEdge,
+  Polygon,
+  Polyline,
+  Pt,
+  StreetGraph,
+  Terrain,
+  TerrainLabel,
+  TerrainSource,
+} from './terrain/types';

@@ -13,7 +13,13 @@ export type Command =
   | { readonly type: 'SetGridUp'; readonly up: boolean }
   | { readonly type: 'SetNodePowered'; readonly nodeId: NodeId; readonly powered: boolean | null }
   | { readonly type: 'MoveNode'; readonly nodeId: NodeId; readonly x: number; readonly y: number }
-  | { readonly type: 'SetMobility'; readonly enabled: boolean; readonly stepMetres?: number }
+  | {
+      readonly type: 'SetMobility';
+      readonly enabled: boolean;
+      readonly stepMetres?: number;
+      /** Takes effect when the next world is built (ResetWorld / Generate). */
+      readonly walkerFraction?: number;
+    }
   | { readonly type: 'SetConfig'; readonly patch: Partial<EngineConfig> }
   | {
       readonly type: 'SetRange';

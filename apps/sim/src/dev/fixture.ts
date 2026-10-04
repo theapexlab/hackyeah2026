@@ -15,6 +15,7 @@ import {
   type NodeId,
   type NodeView,
   Prng,
+  resolveTerrain,
   type SimEvent,
   type Snapshot,
   type TransitEvent,
@@ -23,6 +24,8 @@ import { setSnapshotSource } from '../sim/store';
 
 const WIDTH = 1000;
 const HEIGHT = 700;
+/** A procedural map of the fixture's size (seed 7), one object for every fabricated snapshot. */
+const TERRAIN = resolveTerrain({ seed: 7, width: WIDTH, height: HEIGHT });
 const RANGE = { mobile: 100, router: 200, gateway: 220 } as const;
 const L2_REGION = { x: 760, y: 340, r: 190 } as const;
 
@@ -179,6 +182,7 @@ export function makeFixtureSnapshot(tick = 0): Snapshot {
       credentialKind: d.credentialKind,
       backhaul: d.backhaul,
       batteryBacked: d.batteryBacked,
+      walker: false,
       poweredOverride: null,
       alive: d.alive,
       wanUp: d.alive && cellsUp,
@@ -302,6 +306,7 @@ export function makeFixtureSnapshot(tick = 0): Snapshot {
       mobility: false,
       nodeCount: nodes.length,
     },
+    terrain: TERRAIN,
     globalMode: 'L2',
     nodes,
     edges,
