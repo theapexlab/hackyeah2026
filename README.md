@@ -51,9 +51,9 @@ simulation is about mesh behaviour.
 
 ## Prototype
 
-[`apps/prototype`](apps/prototype/README.md) holds a partly built prototype of the protocol and
-services: Go services running as containers on one machine, and the start of a Kotlin phone SDK. Its
-README says what works today and what is left.
+Beyond the hackathon deliverable, [`apps/prototype`](apps/prototype/README.md) holds a partly built
+prototype of the protocol and services: Go services running as containers on one machine, with real
+signatures, and the start of a Kotlin phone SDK. Its README says what works today and what is left.
 
 ## Running the simulation
 

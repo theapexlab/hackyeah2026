@@ -17,7 +17,7 @@ One line, keys in this order:
 | `hop` | integer | Hops the node counted. The skeleton does not count hops yet and writes `0`. |
 | `decision` | string | `forward`, `post` or `drop`. |
 | `reason` | string | `valid` for `forward` and `post`. For `drop`: `bad_signature`, `not_canonical`, `bad_version` or `malformed`. |
-| `mode` | string | `peace` or `crisis`. The skeleton writes `peace`. |
+| `mode` | string | `peace`, `L1`, `L2` or `L3`, the modes in `docs/diagrams/03-mode-state-machine.mmd`. The skeleton writes `peace`. |
 
 `post` is a gateway handing a verified message to the server. A node writes the event before it acts
 on the decision, so a `post` line can exist for a POST that then failed; that failure is a separate

@@ -80,7 +80,9 @@ The codes are fixed. A code is never reused.
 A **link local** class travels one hop. It carries no geohash, no radius and no recorded path. The
 decision pipeline enforces this (`forwarding-rules.md`); the frame layer does not know the class.
 CREDENTIAL_ANNOUNCE carries the 125-byte compact credential. CREDENTIAL_REQUEST carries the 8-byte `cid`
-that is being asked for.
+that is being asked for. These two classes are not in `docs/requirements/`: they are how a node gets the
+certificate of a signer it has not seen yet, so that messages carry an 8-byte reference instead of the
+whole certificate (NFR-PERF-01).
 
 The payload budget is for a message without free text. A message with free text may reach 1 KB
 (NFR-PERF-01). A payload layout per class will be specified with its class: the CAP subset in

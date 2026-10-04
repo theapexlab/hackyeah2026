@@ -67,10 +67,10 @@ phase 1 is done.
 |---|---|---|---|
 | 0 Foundations | Pinned toolchain, build, containers, the end-to-end path above | none | Done |
 | 1 Protocol core | Go protocol library, open specification, shared test vectors | 0 | 4 of 14 steps done |
-| 2 Certificate authority | Enrollment, key wrap, credentials, transparency log, declarations, web certificates | 1 | Not started |
+| 2 Certificate authority | Registration: checks identity, attestation and proof of possession, then signs the certificate over the phone's own public key; renewal; region-scoped declaration keys for local authorities; transparency log; web certificates | 1 | Not started |
 | 3 Radio, relay, gateway | Broker with link loss, delay, power and backhaul; relay with disk buffer, topology gossip, captive portal | 1, and 2 for credentials | Not started |
-| 4 Kotlin SDK | Phone library and a host that runs many virtual phones in one JVM | 1, then 2 and 3 | Not started |
-| 5 Elevated User Server | Role login for Police, Fire, Emergency Medical Services and Military; live dashboard; declarations with dual control for L3; alerts | 2, 3 | Not started |
+| 4 Kotlin SDK | Phone library that generates its key on the device, and a host that runs many virtual phones in one JVM | 1, then 2 and 3 | Not started |
+| 5 Elevated User Server | Role login for the local authority's crisis office and for Police, Fire, Emergency Medical Services and Military; live dashboard; mode declarations and alerts for the authority's own region, L3 with two approvers | 2, 3 | Not started |
 | 6 Scenarios and metrics | A Kraków district fixture, ten scripted scenarios, reach and delivery metrics, a one-command demo | 2 to 5 | Not started |
 | 7 Hardening | Security scans, decoder fuzzing, reproducible builds, licence audit, clean-clone check | 0 to 6 | Not started |
 
@@ -102,6 +102,11 @@ Open questions for phase 1:
 - The time and window rules have no shared test vectors yet. They need them before the Kotlin SDK
   implements the same rules.
 
+Trust model for phases 2 and 4: the phone generates its own key pair, and the authority only signs
+the certificate over the public key, as `docs/concept.md` and FR-ID-02 to FR-ID-04 describe. No
+private key travels anywhere. Containers have no secure element and no hardware attestation, so
+the emulation needs a software stand-in for both.
+
 ### Target design
 
 When phase 6 is done, the stack grows to run a whole district:
@@ -115,8 +120,8 @@ When phase 6 is done, the stack grows to run a whole district:
                                                           +-------------------+-------------------+
                                                           v                                       v
                                                  Certificate authority                    Elevated User Server
-                                                 (issue, renew, sign declarations,        (ingest, dashboard, role login,
-                                                  alerts, transparency log)                declaration console, alert console)
+                                                 (sign certificates, renew, certify       (ingest, dashboard, role login,
+                                                  region keys, transparency log)           declaration console, alert console)
 ```
 
 The broker is the only path between mesh nodes. A node reaches the certificate authority or the
