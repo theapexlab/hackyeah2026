@@ -27,7 +27,10 @@ engine is deterministic). A lime badge counts the requests a phone currently see
 
 Time is real: a tick stands for 200 ms of simulated time (the Tick length slider) and takes
 just as long at 1×; 10× and 60× run 50 and 300 ticks a second (at 60× several ticks per
-frame). Protocol timings such as TTLs stay in ticks.
+frame). A message lives five simulated minutes (1500 ticks at 200 ms); in an emergency mode
+every node that receives it keeps a copy that long and hands it to every new neighbour that
+does not have it yet (store-and-forward, FR-NET-08), then drops it (TTL_EXPIRED). Other
+protocol timings (hop limits, mode hysteresis) stay in ticks.
 
 Street traffic at real speeds: at every moment 10% of the phones walk at 2–3 km/h (walking
 icon, cyan dot), 5% cycle at 10 km/h (bike icon, indigo dot) and 10% drive at 50 km/h (car
@@ -111,7 +114,9 @@ Three layers share one zoom transform on the map:
 2. **SVG** (`NodesLayer` / `NodeGlyph`): one memoised glyph per node with click, double-click
    (centre), hover and tooltip. Ring colour = node mode, green outer ring = backhaul, dashed =
    unregistered, walking / car icon with a cyan / pink dot = on the move, amber badge =
-   store-and-forward buffer, lime badge = open requests, dim = powered off.
+   store-and-forward buffer, lime badge = open requests, dim = powered off. Routers, the
+   backdrop of the mesh, are drawn at 40% (12% when down, full while selected or hovered),
+   and router-to-router links on the canvas are faint, so phones and their links stand out.
 3. **HTML overlay** (`MapOverlay`): legend, zoom buttons, Authority badge.
 
 State lives in two zustand stores. `sim/store.ts` holds the engine, its latest immutable

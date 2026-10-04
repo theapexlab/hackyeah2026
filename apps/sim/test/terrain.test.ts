@@ -14,6 +14,7 @@ import {
   travelTargets,
 } from '@pomoc/core';
 import { describe, expect, it } from 'vitest';
+import { isBackboneEdge } from '../src/features/map/renderer/drawEdges';
 import {
   appendPolygon,
   appendPolyline,
@@ -24,6 +25,7 @@ import {
 import { isKrakowSeed, terrainTitle } from '../src/lib/terrain';
 import { countNodes } from '../src/sim/selectors';
 import { createWorld, resetWorld, useSimStore } from '../src/sim/store';
+import { glyphOpacity } from '../src/theme/tokens';
 import { DEFAULT_CONFIG_DRAFT } from '../src/ui/store';
 
 function recorder(): PathSink & { ops: string[] } {
@@ -96,5 +98,23 @@ describe('Kraków map in the app', () => {
     expect(labelsVisible(0.1)).toBe(false);
     expect(streetWidth(0.1, 3.5, 1)).toBe(10); // zoomed out: at least 1 screen px
     expect(streetWidth(4, 3.5, 1)).toBe(3.5); // zoomed in: the street's real width
+  });
+});
+
+describe('glyph opacity', () => {
+  it('fades routers, more when down, but not while selected or hovered', () => {
+    expect(glyphOpacity('router', true, false)).toBe(0.4);
+    expect(glyphOpacity('router', false, false)).toBe(0.12);
+    expect(glyphOpacity('router', false, true)).toBe(0.35);
+    expect(glyphOpacity('mobile', true, false)).toBe(1);
+    expect(glyphOpacity('gateway', false, false)).toBe(0.35);
+  });
+});
+
+describe('backbone links', () => {
+  it('only router-to-router links count as the faint backbone', () => {
+    expect(isBackboneEdge({ kind: 'router' }, { kind: 'router' })).toBe(true);
+    expect(isBackboneEdge({ kind: 'router' }, { kind: 'mobile' })).toBe(false);
+    expect(isBackboneEdge({ kind: 'gateway' }, { kind: 'router' })).toBe(false);
   });
 });

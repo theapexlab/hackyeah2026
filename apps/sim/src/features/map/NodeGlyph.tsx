@@ -5,6 +5,7 @@ import { type MouseEvent, memo } from 'react';
 import { formatKind } from '../../lib/format';
 import { KIND_ICON, TRAVEL_ICON } from '../../theme/icons';
 import {
+  glyphOpacity,
   MODE_LABEL,
   modeColorVar,
   OPEN_REQUEST_COLOR,
@@ -26,6 +27,9 @@ export interface NodeGlyphProps {
   readonly travel: TravelMode | null;
   readonly storeSize: number;
   readonly openRequests: number;
+  /** View toggles (o / s): draw the open-request and stored-message counters. */
+  readonly showRequestBadge: boolean;
+  readonly showStoreBadge: boolean;
   readonly selected: boolean;
   readonly hovered: boolean;
 }
@@ -65,6 +69,8 @@ const NodeBody = memo(function NodeBody({
   travel,
   storeSize,
   openRequests,
+  showRequestBadge,
+  showStoreBadge,
   selected,
   hovered,
 }: Omit<NodeGlyphProps, 'x' | 'y'>) {
@@ -91,7 +97,7 @@ const NodeBody = memo(function NodeBody({
         data-node={id}
         transform={hovered ? 'scale(1.15)' : undefined}
         className="pomoc-node"
-        style={{ opacity: alive ? 1 : 0.35 }}
+        style={{ opacity: glyphOpacity(kind, alive, selected || hovered) }}
         onClick={(event) => handleClick(event, id)}
         onDoubleClick={(event) => handleDoubleClick(event, id)}
         onPointerEnter={() => useUiStore.getState().hover(id)}
@@ -141,7 +147,7 @@ const NodeBody = memo(function NodeBody({
             }}
           />
         )}
-        {openRequests > 0 ? (
+        {showRequestBadge && openRequests > 0 ? (
           <g className="pomoc-request-badge" transform={`translate(${-r * 0.85} ${-r * 0.85})`}>
             <circle r={6.5} style={{ fill: `var(--mantine-color-${OPEN_REQUEST_COLOR}-5)` }} />
             <text
@@ -155,7 +161,7 @@ const NodeBody = memo(function NodeBody({
             </text>
           </g>
         ) : null}
-        {storeSize > 0 ? (
+        {showStoreBadge && storeSize > 0 ? (
           <g className="pomoc-store-badge" transform={`translate(${r * 0.85} ${-r * 0.85})`}>
             <circle r={6.5} style={{ fill: 'var(--mantine-color-yellow-5)' }} />
             <text

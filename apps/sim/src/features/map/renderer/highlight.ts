@@ -13,6 +13,18 @@ export interface TrailEdge {
   readonly to: NodeId;
   /** Tick of the first crossing. */
   readonly tick: number;
+  /**
+   * Where the ends stood at that crossing. Drawn instead of the current positions: a phone
+   * that carried the message on (store-and-forward) would otherwise pull every hand-off it
+   * made along the way into one long-spoked star at wherever it is now.
+   */
+  readonly fromPos?: XY;
+  readonly toPos?: XY;
+}
+
+interface XY {
+  readonly x: number;
+  readonly y: number;
 }
 
 export interface Trail {
@@ -41,7 +53,12 @@ export function collectTrail(ticks: readonly (readonly TransitEvent[])[], msgId:
       const reverse = `${transit.to}|${transit.from}`;
       if (seen.has(key) || seen.has(reverse)) continue;
       seen.add(key);
-      edges.push({ from: transit.from, to: transit.to, tick: transit.tick });
+      const edge: TrailEdge = { from: transit.from, to: transit.to, tick: transit.tick };
+      edges.push(
+        transit.fromPos && transit.toPos
+          ? { ...edge, fromPos: transit.fromPos, toPos: transit.toPos }
+          : edge,
+      );
     }
   }
   return { msgId, edges, nodes };
@@ -58,4 +75,22 @@ export function chainEdges(path: readonly NodeId[]): TrailEdge[] {
     out.push({ from, to, tick: i });
   }
   return out;
+}
+
+/**
+ * Give chain edges the crossing positions of the matching trail edges (either direction),
+ * so the recorded route is drawn where the hops happened. Edges with no match keep none.
+ */
+export function placeChain(chain: readonly TrailEdge[], trail: Trail): TrailEdge[] {
+  const byKey = new Map<string, TrailEdge>();
+  for (const edge of trail.edges) byKey.set(`${edge.from}|${edge.to}`, edge);
+  return chain.map((edge) => {
+    const same = byKey.get(`${edge.from}|${edge.to}`);
+    if (same?.fromPos && same.toPos) return { ...edge, fromPos: same.fromPos, toPos: same.toPos };
+    const reverse = byKey.get(`${edge.to}|${edge.from}`);
+    if (reverse?.fromPos && reverse.toPos) {
+      return { ...edge, fromPos: reverse.toPos, toPos: reverse.fromPos };
+    }
+    return edge;
+  });
 }

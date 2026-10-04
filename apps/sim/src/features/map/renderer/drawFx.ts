@@ -2,12 +2,12 @@ import type { DeclarationView, NodeId, NodeView } from '@pomoc/core';
 import { type Palette, withAlpha } from '../../../theme/tokens';
 import type { TrailEdge } from './highlight';
 import {
-  BURST_MS,
   type Burst,
   easePulse,
   isRejection,
   type Pulse,
   particleAge,
+  pulseProgress,
   type Ripple,
   TAIL_COUNT,
   tailProgress,
@@ -54,7 +54,10 @@ export function drawRegionTints(
   }
 }
 
-/** Highlighted message: its flood trail (soft) and, when known, the recorded hop chain (bright). */
+/**
+ * Highlighted message: its flood trail (soft) and, when known, the recorded hop chain (bright),
+ * each edge where it was crossed when the transit carries positions.
+ */
 export function drawTrail(
   ctx: CanvasRenderingContext2D,
   trail: readonly TrailEdge[],
@@ -67,8 +70,8 @@ export function drawTrail(
     if (edges.length === 0) return;
     ctx.beginPath();
     for (const edge of edges) {
-      const a = nodes.get(edge.from);
-      const b = nodes.get(edge.to);
+      const a = edge.fromPos ?? nodes.get(edge.from);
+      const b = edge.toPos ?? nodes.get(edge.to);
       if (!a || !b) continue;
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -89,10 +92,13 @@ export function drawTrail(
     const r = 4 / k;
     const seen = new Set<NodeId>();
     for (const edge of chain) {
-      for (const id of [edge.from, edge.to]) {
+      for (const [id, pos] of [
+        [edge.from, edge.fromPos],
+        [edge.to, edge.toPos],
+      ] as const) {
         if (seen.has(id)) continue;
         seen.add(id);
-        const n = nodes.get(id);
+        const n = pos ?? nodes.get(id);
         if (!n) continue;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
@@ -104,13 +110,14 @@ export function drawTrail(
 
 /**
  * Packets in flight: glow sprite at the eased head position plus ghost heads behind it.
- * Positions are read from the CURRENT node views, so pulses follow moving phones.
+ * Each pulse has its own flight (start, duration), so pulses of several ticks can be in the
+ * air together. Positions are read from the CURRENT node views, so pulses follow moving phones.
  */
 export function drawPulses(
   ctx: CanvasRenderingContext2D,
   pulses: readonly Pulse[],
   nodes: NodeLookup,
-  t: number,
+  now: number,
   sprites: SpriteSet,
   palette: Palette,
   k: number,
@@ -118,13 +125,14 @@ export function drawPulses(
   if (pulses.length === 0) return;
   const previousBlend = ctx.globalCompositeOperation;
   ctx.globalCompositeOperation = palette.blend;
-  const head = easePulse(t);
-  const tails = tailProgress(t).map(easePulse);
 
   for (const pulse of pulses) {
     const a = nodes.get(pulse.fromId);
     const b = nodes.get(pulse.toId);
     if (!a || !b) continue;
+    const t = pulseProgress(pulse, now);
+    const head = easePulse(t);
+    const tails = tailProgress(t).map(easePulse);
     const scale =
       (CLASS_SCALE[pulse.cls] ?? 1) * (1 + Math.min(0.6, Math.log2(pulse.count) * 0.12));
     const size = (PULSE_PX * scale) / k;
@@ -226,7 +234,7 @@ export function drawBursts(
   for (const burst of bursts) {
     const n = nodes.get(burst.nodeId);
     if (!n) continue;
-    const age = particleAge(burst.start, BURST_MS, now);
+    const age = particleAge(burst.start, burst.duration, now);
     const rejected = isRejection(burst.reason);
     const color = rejected ? palette.danger : palette.muted;
     const spokes = rejected ? 8 : 5;

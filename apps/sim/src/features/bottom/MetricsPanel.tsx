@@ -9,8 +9,13 @@ import {
   Tooltip,
 } from '@mantine/core';
 import type { MessageClass } from '@pomoc/core';
-import { DROP_REASONS, MESSAGE_CLASSES } from '@pomoc/core';
-import { useShallow } from 'zustand/react/shallow';
+import {
+  CITIZEN_REQUEST_CLASSES,
+  DROP_REASONS,
+  deliveryAudience,
+  deliveryCoverage,
+  MESSAGE_CLASSES,
+} from '@pomoc/core';
 import { formatClass, formatPercent } from '../../lib/format';
 import { useSimStore } from '../../sim/store';
 import { CLASS_COLOR, DROP_REASON_LABEL, isRejection } from '../../theme/tokens';
@@ -60,14 +65,13 @@ function Stat({ label, value }: { readonly label: string; readonly value: string
 
 /**
  * Live metrics (FR-SIM-06): reachability rings, per-class coverage bars, drops by reason,
- * medians. Coverage = unique (message, node) deliveries over originated × nodes in the world.
- * The world's node count is the stable population, so bars never move retroactively when
- * nodes die; the tooltip keeps the raw core counters.
+ * medians. Delivery counts people: phones only. Coverage = phones reached per originated
+ * message over the class's audience (registered phones for requests, every phone otherwise,
+ * see deliveryAudience), a stable population, so bars never move retroactively when phones
+ * die; the tooltip keeps the raw counters.
  */
 export function MetricsPanel() {
-  const { metrics, nodeCount } = useSimStore(
-    useShallow((s) => ({ metrics: s.snapshot.metrics, nodeCount: s.snapshot.world.nodeCount })),
-  );
+  const metrics = useSimStore((s) => s.snapshot.metrics);
   const classes = MESSAGE_CLASSES.filter((cls) => metrics.byClass[cls].originated > 0);
   const drops = DROP_REASONS.filter((reason) => metrics.dropsByReason[reason] > 0);
 
@@ -90,12 +94,13 @@ export function MetricsPanel() {
           ) : (
             classes.map((cls: MessageClass) => {
               const m = metrics.byClass[cls];
-              const coverage =
-                nodeCount > 0 ? Math.min(1, m.uniqueReached / (m.originated * nodeCount)) : 0;
+              const coverage = deliveryCoverage(metrics, cls);
+              const audience = deliveryAudience(metrics, cls);
+              const who = CITIZEN_REQUEST_CLASSES.includes(cls) ? 'registered phones' : 'phones';
               return (
                 <Tooltip
                   key={cls}
-                  label={`${m.originated} originated · ${m.delivered} deliveries · ${m.uniqueReached} nodes reached · ${m.dropped} dropped`}
+                  label={`${m.originated} originated · ${m.delivered} deliveries · ${m.uniqueReached} phones reached of ${audience} ${who} · ${m.dropped} dropped`}
                 >
                   <div>
                     <Group gap={6} justify="space-between" wrap="nowrap">

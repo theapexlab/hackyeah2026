@@ -13,7 +13,9 @@ import type { Mode } from '@pomoc/core';
 import {
   IconAffiliate,
   IconCircleDotted,
+  IconDatabase,
   IconFocusCentered,
+  IconMessage2,
   IconZoomIn,
   IconZoomOut,
 } from '@tabler/icons-react';
@@ -126,6 +128,10 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
   const toggleRanges = useUiStore((s) => s.toggleRanges);
   const showTopologyPackets = useUiStore((s) => s.showTopologyPackets);
   const toggleTopologyPackets = useUiStore((s) => s.toggleTopologyPackets);
+  const showRequestBadges = useUiStore((s) => s.showRequestBadges);
+  const toggleRequestBadges = useUiStore((s) => s.toggleRequestBadges);
+  const showStoreBadges = useUiStore((s) => s.showStoreBadges);
+  const toggleStoreBadges = useUiStore((s) => s.toggleStoreBadges);
   // Primitives only: countNodes() returns a fresh object per snapshot, which would defeat useShallow.
   const {
     seed,
@@ -220,6 +226,28 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
             onClick={toggleTopologyPackets}
           >
             <IconAffiliate size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Open-request badges (o)" position="left">
+          <ActionIcon
+            variant={showRequestBadges ? 'filled' : 'default'}
+            size="lg"
+            aria-pressed={showRequestBadges}
+            aria-label="Open-request badges"
+            onClick={toggleRequestBadges}
+          >
+            <IconMessage2 size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Stored-message badges (s)" position="left">
+          <ActionIcon
+            variant={showStoreBadges ? 'filled' : 'default'}
+            size="lg"
+            aria-pressed={showStoreBadges}
+            aria-label="Stored-message badges"
+            onClick={toggleStoreBadges}
+          >
+            <IconDatabase size={18} />
           </ActionIcon>
         </Tooltip>
         <Tooltip label="Zoom in" position="left">

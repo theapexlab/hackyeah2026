@@ -51,7 +51,11 @@ export interface ClassMetrics {
   readonly dropped: number;
 }
 
-/** Live metrics (FR-SIM-06). Medians are null until at least one delivery. */
+/**
+ * Live metrics (FR-SIM-06). Delivery counters, hop and latency medians count phones only
+ * (people): routers and gateways relay, they are not an audience. Medians are null until at
+ * least one delivery.
+ */
 export interface MetricsView {
   readonly byClass: Readonly<Record<MessageClass, ClassMetrics>>;
   readonly dropsByReason: Readonly<Record<DropReason, number>>;
@@ -67,6 +71,10 @@ export interface MetricsView {
     readonly delivered: number;
     readonly dropped: number;
   };
+  /** Phones in the world: the audience of alerts, declarations and check-ins. */
+  readonly phones: number;
+  /** Registered phones: the only ones that act on requests. */
+  readonly citizenPhones: number;
 }
 
 /** World-level flags and dimensions. */
@@ -136,5 +144,7 @@ export function emptyMetrics(): MetricsView {
     storedTotal: 0,
     transitsThisTick: 0,
     totals: { originated: 0, delivered: 0, dropped: 0 },
+    phones: 0,
+    citizenPhones: 0,
   };
 }

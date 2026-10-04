@@ -59,8 +59,11 @@ export interface EngineConfig {
   readonly wanStableTicks: number;
   /** Ticks a node holds L1 after leaving L3 (never straight to PEACE). */
   readonly l3StepDownHoldTicks: number;
-  /** Default lifetime of a declaration. */
-  readonly declarationDurationTicks: number;
+  /**
+   * Default lifetime of a declaration in simulated seconds (turned into ticks with
+   * tickSeconds when it is declared), so it lasts as long whatever the tick length.
+   */
+  readonly declarationDurationSeconds: number;
   /** Max forwards per node per tick; excess lowest-priority packets drop as CONGESTION. */
   readonly nodeCapacityPerTick: number;
   readonly mobility: MobilityConfig;
@@ -81,10 +84,10 @@ export const DEFAULT_WORLD_CONFIG: WorldConfig = {
   seed: 42,
   width: 2200,
   height: 1300,
-  mobiles: 500,
-  routers: 1200,
+  mobiles: 200,
+  routers: 100,
   gateways: 1,
-  range: { mobile: 50, router: 100, gateway: 200 },
+  range: { mobile: 160, router: 300, gateway: 400 },
   unregisteredFraction: 0.1,
   batteryBackedRouterFraction: 0.1,
   gatewayBackhaul: 'satellite',
@@ -94,7 +97,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   localModeAfterTicks: 5,
   wanStableTicks: 8,
   l3StepDownHoldTicks: 5,
-  declarationDurationTicks: 300,
+  declarationDurationSeconds: 15 * 60,
   nodeCapacityPerTick: 32,
   tickSeconds: 0.2,
   mobility: {

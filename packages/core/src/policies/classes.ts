@@ -34,6 +34,20 @@ export const RELAY_ONLY_CLASSES: readonly MessageClass[] = ['TOPOLOGY', 'PORTAL_
 /** Commerce classes that may carry a price. */
 export const COMMERCE_CLASSES: readonly MessageClass[] = ['LEND', 'BORROW', 'GIVE', 'SELL'];
 
+/** Reach of an urgent citizen request (LIFE_CRITICAL, SAFETY): a circle this wide around its origin. */
+export const URGENT_REQUEST_RADIUS_M = 1000;
+/** Reach of every other citizen request. */
+export const REQUEST_RADIUS_M = 500;
+
+/**
+ * Radius of the region a citizen REQUEST is stamped with at origination (centred on the
+ * origin). Help comes from nearby, so neither the flood nor a carried custody copy goes
+ * further; the CLOSE inherits the same region.
+ */
+export function requestRadiusM(cls: MessageClass): number {
+  return cls === 'LIFE_CRITICAL' || cls === 'SAFETY' ? URGENT_REQUEST_RADIUS_M : REQUEST_RADIUS_M;
+}
+
 export function priorityOf(cls: MessageClass): number {
   return PRIORITY_RANK[cls];
 }

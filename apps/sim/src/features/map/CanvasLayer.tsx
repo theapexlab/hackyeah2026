@@ -42,7 +42,6 @@ export function CanvasLayer({ width, height, zoom }: CanvasLayerProps) {
       transformRef: zoom.transformRef,
       canvas,
       getPalette: () => paletteRef.current,
-      getLastTickAt: () => useSimStore.getState().lastTickAt,
       // Store interval is per tick at speed 1; the real wall-clock tick is shorter when sped up.
       getTickIntervalMs: () => useSimStore.getState().tickIntervalMs / useUiStore.getState().speed,
       // Read through the store so the dev fixture (setSnapshotSource) is honoured.

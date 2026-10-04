@@ -54,6 +54,10 @@ export interface UiState {
   readonly speed: Speed;
   readonly showRanges: boolean;
   readonly showTopologyPackets: boolean;
+  /** Lime badge on a phone: how many open requests it has seen and could take. */
+  readonly showRequestBadges: boolean;
+  /** Amber badge on a node: how many messages it holds in custody. */
+  readonly showStoreBadges: boolean;
   readonly navOpen: boolean;
   readonly configDraft: ConfigDraft;
   readonly followLog: boolean;
@@ -74,6 +78,8 @@ export interface UiState {
   speedDown(): void;
   toggleRanges(): void;
   toggleTopologyPackets(): void;
+  toggleRequestBadges(): void;
+  toggleStoreBadges(): void;
   setNavOpen(open: boolean): void;
   toggleNav(): void;
   patchConfigDraft(patch: Partial<ConfigDraft>): void;
@@ -98,6 +104,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
   speed: 1,
   showRanges: false,
   showTopologyPackets: false,
+  showRequestBadges: true,
+  showStoreBadges: true,
   navOpen: true,
   configDraft: DEFAULT_CONFIG_DRAFT,
   followLog: true,
@@ -145,6 +153,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
   },
   toggleRanges: () => set((s) => ({ showRanges: !s.showRanges })),
   toggleTopologyPackets: () => set((s) => ({ showTopologyPackets: !s.showTopologyPackets })),
+  toggleRequestBadges: () => set((s) => ({ showRequestBadges: !s.showRequestBadges })),
+  toggleStoreBadges: () => set((s) => ({ showStoreBadges: !s.showStoreBadges })),
   setNavOpen: (open) => set({ navOpen: open }),
   toggleNav: () => set((s) => ({ navOpen: !s.navOpen })),
   patchConfigDraft: (patch) => set((s) => ({ configDraft: { ...s.configDraft, ...patch } })),

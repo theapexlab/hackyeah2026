@@ -24,6 +24,7 @@ describe.skipIf(SKIP)('soak: 300 nodes, 1000 ticks, mobility on', () => {
   }, () => {
     const world = { ...DEFAULT_WORLD_CONFIG, mobiles: 200, routers: 90, gateways: 10 };
     const e = createEngine(world, {
+      tickSeconds: 1.5, // the five-minute message lifetime is 200 ticks: it ends within the run
       seenCap: SEEN_CAP,
       recentEventsCap: RECENT_CAP,
       eventLogCap: Number.POSITIVE_INFINITY, // the assertions below count mid-run events

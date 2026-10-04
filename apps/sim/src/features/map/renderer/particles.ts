@@ -17,6 +17,15 @@ import { isRejection } from '../../../theme/tokens';
 
 /** Max pulses drawn per tick; extra lowest-priority pulses are dropped silently. */
 export const PULSE_CAP = 300;
+/**
+ * Max pulses in flight at once. Short ticks or high speeds keep several ticks' pulses
+ * flying together (see flightMs); past this the lowest-priority, oldest ones go first.
+ */
+export const LIVE_PULSE_CAP = 900;
+/** Shortest pulse flight: below this a hop is a blink nobody can follow. */
+export const MIN_FLIGHT_MS = 120;
+/** Shortest ripple / burst life when ticks are short (never longer than its base). */
+export const MIN_FX_MS = 150;
 /** Max bursts spawned per ingest. */
 export const BURST_CAP = 120;
 export const RIPPLE_MS = 400;
@@ -39,7 +48,11 @@ export interface Pulse {
   readonly born: number;
   /** Number of transits folded into this pulse. */
   readonly count: number;
-  /** Set once the pulse reached t >= 1 (or a newer tick arrived); it then retires. */
+  /** Wall-clock ms the flight starts. */
+  readonly start: number;
+  /** Wall-clock ms the flight takes (flightMs). */
+  readonly duration: number;
+  /** Set once the flight is over; the pulse then retires. */
   arrived: boolean;
 }
 
@@ -64,6 +77,7 @@ export interface Burst {
   readonly start: number;
   /** Number of drops folded into this burst. */
   readonly count: number;
+  readonly duration: number;
 }
 
 /** A node touched by an injection or uplink during ingest (no pulse: the Authority has no position). */
@@ -76,6 +90,28 @@ export interface NodeTouch {
 export interface IngestOptions {
   readonly showTopology: boolean;
   readonly cap?: number;
+  /** Wall-clock ms the pulses start flying (default 0). */
+  readonly start?: number;
+  /** Flight time of every pulse (default MIN_FLIGHT_MS). */
+  readonly flightMs?: number;
+}
+
+/**
+ * How long a pulse flies: one tick of wall time, but never under MIN_FLIGHT_MS. With
+ * ticks shorter than that, the next tick's pulses leave before these land, so hops of a
+ * flood overlap instead of flashing past unseen.
+ */
+export function flightMs(tickIntervalMs: number): number {
+  return Math.max(MIN_FLIGHT_MS, tickIntervalMs);
+}
+
+/**
+ * Life of a ripple or burst whose base length is `baseMs`: two ticks of wall time, kept
+ * between MIN_FX_MS and the base, so short ticks do not stack rings across many ticks
+ * and long ticks do not stretch them.
+ */
+export function fxMs(baseMs: number, tickIntervalMs: number): number {
+  return Math.min(baseMs, Math.max(Math.min(MIN_FX_MS, baseMs), 2 * tickIntervalMs));
 }
 
 export interface IngestResult {
@@ -137,6 +173,8 @@ export function ingestTransits(
       via: transit.via,
       born: tick,
       count: 1,
+      start: options.start ?? 0,
+      duration: options.flightMs ?? MIN_FLIGHT_MS,
       arrived: false,
     };
     byEdge.set(key, pulse);
@@ -167,15 +205,20 @@ export function tailProgress(t: number, count = TAIL_COUNT, spacing = TAIL_SPACI
   return out;
 }
 
+/** 0..1 flight progress of a pulse at wall-clock `now`. */
+export function pulseProgress(pulse: Pulse, now: number): number {
+  return particleAge(pulse.start, pulse.duration, now);
+}
+
 /**
- * Mark pulses that reached the far node. Returns the pulses that arrived in this call so
- * the caller can spawn ripples. `force` arrives every pulse (a newer tick superseded them).
+ * Mark pulses whose flight is over at `now`. Returns the pulses that arrived in this call
+ * so the caller can spawn ripples.
  */
-export function arrivePulses(pulses: readonly Pulse[], t: number, force = false): Pulse[] {
+export function arrivePulses(pulses: readonly Pulse[], now: number): Pulse[] {
   const arrived: Pulse[] = [];
   for (const pulse of pulses) {
     if (pulse.arrived) continue;
-    if (force || t >= 1) {
+    if (pulseProgress(pulse, now) >= 1) {
       pulse.arrived = true;
       arrived.push(pulse);
     }
@@ -184,7 +227,11 @@ export function arrivePulses(pulses: readonly Pulse[], t: number, force = false)
 }
 
 /** Ripples for pulses that just arrived (one per destination node and class). */
-export function ripplesForArrivals(arrivals: readonly Pulse[], now: number): Ripple[] {
+export function ripplesForArrivals(
+  arrivals: readonly Pulse[],
+  now: number,
+  duration = RIPPLE_MS,
+): Ripple[] {
   const seen = new Set<string>();
   const out: Ripple[] = [];
   for (const pulse of arrivals) {
@@ -196,7 +243,7 @@ export function ripplesForArrivals(arrivals: readonly Pulse[], now: number): Rip
       cls: pulse.cls,
       kind: 'arrive',
       start: now,
-      duration: RIPPLE_MS,
+      duration,
     });
   }
   return out;
@@ -206,8 +253,8 @@ export function ripplesForTouches(
   touches: readonly NodeTouch[],
   kind: Exclude<RippleKind, 'arrive'>,
   now: number,
+  duration = kind === 'inject' ? INJECT_RIPPLE_MS : UPLINK_RIPPLE_MS,
 ): Ripple[] {
-  const duration = kind === 'inject' ? INJECT_RIPPLE_MS : UPLINK_RIPPLE_MS;
   return touches.map((touch) => ({
     nodeId: touch.nodeId,
     cls: touch.cls,
@@ -225,6 +272,7 @@ export function burstsFromEvents(
   events: readonly SimEvent[],
   now: number,
   cap = BURST_CAP,
+  duration = BURST_MS,
 ): Burst[] {
   const byKey = new Map<string, Burst>();
   for (const event of events) {
@@ -237,6 +285,7 @@ export function burstsFromEvents(
       reason: event.reason,
       start: now,
       count: (prev?.count ?? 0) + 1,
+      duration,
     });
   }
   const bursts = [...byKey.values()].sort((a, b) => {
@@ -252,12 +301,26 @@ export function livePulses(pulses: readonly Pulse[]): Pulse[] {
   return pulses.filter((pulse) => !pulse.arrived);
 }
 
+/**
+ * Keep at most `cap` pulses in flight: highest priority first, newest first inside a rank
+ * (an old pulse is closest to landing anyway). Returns the input when under the cap.
+ */
+export function capPulses(pulses: Pulse[], cap = LIVE_PULSE_CAP): Pulse[] {
+  if (pulses.length <= cap) return pulses;
+  return pulses
+    .map((pulse, i) => ({ pulse, i }))
+    .sort((a, b) => comparePriority(a.pulse.cls, b.pulse.cls) || b.i - a.i)
+    .slice(0, cap)
+    .sort((a, b) => a.i - b.i)
+    .map(({ pulse }) => pulse);
+}
+
 export function liveRipples(ripples: readonly Ripple[], now: number): Ripple[] {
   return ripples.filter((ripple) => now - ripple.start < ripple.duration);
 }
 
 export function liveBursts(bursts: readonly Burst[], now: number): Burst[] {
-  return bursts.filter((burst) => now - burst.start < BURST_MS);
+  return bursts.filter((burst) => now - burst.start < burst.duration);
 }
 
 /** 0..1 life of a timed particle at `now`; 1 means expired. */

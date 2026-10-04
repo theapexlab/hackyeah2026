@@ -50,7 +50,13 @@ export function closeTransaction(state: EngineState, tx: Transaction): void {
     requester,
     tx.class,
     { kind: 'CLOSE', requestId: tx.requestId, accepterId: tx.accepterId ?? tx.requesterId },
-    request === undefined ? {} : { hopLimit: request.hopLimit },
+    // the CLOSE covers the request's region: that is where its custody copies are
+    request === undefined
+      ? {}
+      : {
+          hopLimit: request.hopLimit,
+          ...(request.region === undefined ? {} : { region: request.region }),
+        },
   );
   queueOrigination(requester, msg);
 }
@@ -264,6 +270,22 @@ export function pruneExpiredRequestViews(state: EngineState, node: Node): void {
  * can accept an expired request and every view of it is pruned the same tick).
  * Iterates in creation order, so the events are deterministic.
  */
+/**
+ * Phones waiting on their own request: an open or accepted transaction (closed = fulfilled
+ * or timed out), or a REQUEST queued for origination this tick (its transaction opens in
+ * the origination phase, after mobility). Mobility does not send these off on a trip.
+ */
+export function activeRequesters(state: EngineState): Set<NodeId> {
+  const out = new Set<NodeId>();
+  for (const tx of state.transactions.values()) {
+    if (tx.status !== 'closed') out.add(tx.requesterId);
+  }
+  for (const node of state.nodes) {
+    if (node.pendingOriginations.some((m) => m.payload.kind === 'REQUEST')) out.add(node.id);
+  }
+  return out;
+}
+
 export function closeExpiredTransactions(state: EngineState): void {
   for (const tx of state.transactions.values()) {
     if (tx.status === 'closed' || !requestExpired(state, tx.requestId)) continue;

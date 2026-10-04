@@ -11,10 +11,11 @@ import { applyAllClear, applyDeclaration, evaluateMode } from '../policies/modeM
 import { verifySigner } from '../policies/trust';
 import { isAuthorityBound, uplink } from './authority';
 import { moveTravellers } from './mobility';
-import { expireStores, flushStores, forwardOrStore } from './routing';
+import { expireStores, flushStores, forwardOrStore, releaseClosedRequest } from './routing';
 import type { EngineState } from './state';
 import { addSeen, logEvent, nextPacketSeq, recordDrop, TRANSIT_RING_SIZE } from './state';
 import {
+  activeRequesters,
   closeExpiredTransactions,
   onCloseSeen,
   onResponseAtRequester,
@@ -199,6 +200,7 @@ function originate(state: EngineState, transits: TransitEvent[]): void {
         node.requestView.set(msg.id, { requestId: msg.id, status: 'mine', hop: 0, path: [] });
       }
       maybeUplink(state, node, msg, 0, transits);
+      releaseClosedRequest(node, msg);
       const base = { msgId: msg.id, hop: 0, path: [], lastHop: null, seq: nextPacketSeq(state) };
       const packet: Packet = msg.payload.kind === 'RESPONSE' ? { ...base, routeCursor: 0 } : base;
       forwardOrStore(state, node, msg, packet, transits);
@@ -216,7 +218,10 @@ function deliverLocally(state: EngineState, node: Node, msg: Message, packet: Pa
     class: msg.class,
     hop: packet.hop,
   });
-  state.metrics.onDelivered(msg.class, msg.id, node.id, packet.hop, state.tick - msg.createdTick);
+  // Delivery metrics measure people reached: phones only (routers and gateways relay).
+  if (node.kind === 'mobile') {
+    state.metrics.onDelivered(msg.class, msg.id, node.id, packet.hop, state.tick - msg.createdTick);
+  }
   const payload = msg.payload;
   switch (payload.kind) {
     case 'MODE_DECLARATION':
@@ -282,6 +287,7 @@ function processInbox(state: EngineState, node: Node, transits: TransitEvent[]):
       continue;
     }
     addSeen(node, msg.id, state.config.seenCap);
+    releaseClosedRequest(node, msg);
     if (verdict.deliverLocally) deliverLocally(state, node, msg, packet);
     maybeUplink(state, node, msg, packet.hop, transits);
     if (forwarded >= capacity) {
@@ -295,7 +301,8 @@ function processInbox(state: EngineState, node: Node, transits: TransitEvent[]):
 /**
  * One simulation tick (plan A5), in this order:
  *  1 mobility (if enabled, generated worlds only): walkers and drivers follow their street
- *    trips in id order, arrivals linger, and freed places are refilled (moveTravellers);
+ *    trips in id order, arrivals linger, and freed places are refilled (moveTravellers)
+ *    from phones that are not waiting on a request of their own (activeRequesters);
  *    adjacency is marked dirty only if someone moved
  *  2 liveness, then adjacency + components when dirty
  *  3 mode machine per alive node (WAN counters first, then evaluateMode)
@@ -322,7 +329,7 @@ export function runTick(state: EngineState): TickResult {
   state.pendingTransits = [];
 
   // 1 mobility
-  if (state.config.mobility.enabled) moveTravellers(state);
+  if (state.config.mobility.enabled) moveTravellers(state, activeRequesters(state));
 
   // 2 liveness + adjacency
   refreshTopology(state);

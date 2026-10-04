@@ -4,6 +4,7 @@ import type { MessageId, NodeId } from '../domain/ids';
 import type { MessageClass } from '../domain/message';
 import { MESSAGE_CLASSES } from '../domain/message';
 import type { ClassMetrics, MetricsView } from '../domain/snapshot';
+import { CITIZEN_REQUEST_CLASSES } from '../policies/classes';
 
 /** Topology-derived numbers, recomputed by the engine whenever adjacency changes. */
 export interface TopologyMetrics {
@@ -80,6 +81,7 @@ export class MetricsState {
     componentCount: 0,
   };
   private tickStats: TickMetrics = { storedTotal: 0, transitsThisTick: 0 };
+  private population: Population = { phones: 0, citizenPhones: 0 };
   private totals = { originated: 0, delivered: 0, dropped: 0 };
   private cache: MetricsView | null = null;
 
@@ -98,7 +100,16 @@ export class MetricsState {
     this.reached.clear();
     this.topology = { reachableFraction: 0, authorityReachableFraction: 0, componentCount: 0 };
     this.tickStats = { storedTotal: 0, transitsThisTick: 0 };
+    this.population = { phones: 0, citizenPhones: 0 };
     this.totals = { originated: 0, delivered: 0, dropped: 0 };
+    this.cache = null;
+  }
+
+  /** How many phones (and registered phones) the world has: the delivery audience. */
+  setPopulation(p: Population): void {
+    const cur = this.population;
+    if (cur.phones === p.phones && cur.citizenPhones === p.citizenPhones) return;
+    this.population = { ...p };
     this.cache = null;
   }
 
@@ -109,8 +120,8 @@ export class MetricsState {
   }
 
   /**
-   * A packet was accepted and acted on at `nodeId`. `latencyTicks` is
-   * tick - message.createdTick.
+   * A packet was accepted and acted on by the phone `nodeId` (the engine reports phones
+   * only). `latencyTicks` is tick - message.createdTick.
    */
   onDelivered(
     cls: MessageClass,
@@ -177,8 +188,35 @@ export class MetricsState {
       storedTotal: this.tickStats.storedTotal,
       transitsThisTick: this.tickStats.transitsThisTick,
       totals: { ...this.totals },
+      phones: this.population.phones,
+      citizenPhones: this.population.citizenPhones,
     };
     this.cache = view;
     return view;
   }
+}
+
+/** The phones a world has, for delivery coverage. */
+export interface Population {
+  readonly phones: number;
+  readonly citizenPhones: number;
+}
+
+/**
+ * Who can act on a message of `cls`: registered phones for requests (and the replies and
+ * closes of a request, which share its class), every phone for everything else.
+ */
+export function deliveryAudience(
+  metrics: Pick<MetricsView, 'phones' | 'citizenPhones'>,
+  cls: MessageClass,
+): number {
+  return CITIZEN_REQUEST_CLASSES.includes(cls) ? metrics.citizenPhones : metrics.phones;
+}
+
+/** Share of the audience reached per originated message of `cls`, 0..1. */
+export function deliveryCoverage(metrics: MetricsView, cls: MessageClass): number {
+  const m = metrics.byClass[cls];
+  const audience = deliveryAudience(metrics, cls);
+  if (audience <= 0 || m.originated <= 0) return 0;
+  return Math.min(1, m.uniqueReached / (m.originated * audience));
 }

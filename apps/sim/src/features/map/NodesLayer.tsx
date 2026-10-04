@@ -13,6 +13,8 @@ export function NodesLayer({ gRef }: NodesLayerProps) {
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const hoveredNodeId = useUiStore((s) => s.hoveredNodeId);
   const deselect = useUiStore((s) => s.deselect);
+  const showRequestBadges = useUiStore((s) => s.showRequestBadges);
+  const showStoreBadges = useUiStore((s) => s.showStoreBadges);
 
   return (
     <svg
@@ -35,6 +37,8 @@ export function NodesLayer({ gRef }: NodesLayerProps) {
             travel={node.travel}
             storeSize={node.storeSize}
             openRequests={node.openRequests}
+            showRequestBadge={showRequestBadges}
+            showStoreBadge={showStoreBadges}
             selected={selectedNodeId === node.id}
             hovered={hoveredNodeId === node.id}
           />

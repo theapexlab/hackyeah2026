@@ -6,8 +6,13 @@ import type { MessageClass } from '../../src/domain/message';
 import { MESSAGE_CLASSES } from '../../src/domain/message';
 import type { CredentialKind } from '../../src/domain/node';
 import { emptyMetrics } from '../../src/domain/snapshot';
-import { MetricsState, medianOfHistogram } from '../../src/metrics/metrics';
-import { engineFrom, gateway, mobile } from '../helpers';
+import {
+  deliveryAudience,
+  deliveryCoverage,
+  MetricsState,
+  medianOfHistogram,
+} from '../../src/metrics/metrics';
+import { engineFrom, eventsOf, gateway, mobile, router } from '../helpers';
 
 const m1 = messageId('m-001#1');
 const m2 = messageId('m-001#2');
@@ -236,5 +241,47 @@ describe('engine-level metrics (plan A7)', () => {
     expect(e.getSnapshot().metrics.authorityReachableFraction).toBe(0);
     e.dispatch({ type: 'SetCellsUp', up: true });
     expect(e.getSnapshot().metrics.authorityReachableFraction).toBe(1);
+  });
+});
+
+describe('delivery counts people: phones only', () => {
+  it('routers and gateways relay an alert without counting; coverage is per audience', () => {
+    // g-01 -- r-001 -- m-001 -- m-002 (unregistered) -- m-003, 40 m apart
+    const e = engineFrom([
+      gateway('g-01', 0, 0),
+      router('r-001', 40, 0),
+      mobile('m-001', 80, 0),
+      mobile('m-002', 120, 0, 'none'),
+      mobile('m-003', 160, 0),
+    ]);
+    const m0 = e.getSnapshot().metrics;
+    expect([m0.phones, m0.citizenPhones]).toEqual([3, 2]);
+
+    e.dispatch({ type: 'BroadcastAlert', text: 'boil water' });
+    e.step(6);
+    const delivered = eventsOf(e, 'DELIVERED').map((d) => d.nodeId);
+    expect(delivered).toEqual(expect.arrayContaining(['g-01', 'r-001'])); // they still act on it
+    const alert = e.getSnapshot().metrics.byClass.OFFICIAL_ALERT;
+    expect(alert.uniqueReached).toBe(3); // ...but only the three phones count
+    expect(deliveryAudience(e.getSnapshot().metrics, 'OFFICIAL_ALERT')).toBe(3);
+    expect(deliveryCoverage(e.getSnapshot().metrics, 'OFFICIAL_ALERT')).toBe(1);
+
+    e.dispatch({
+      type: 'SendRequest',
+      from: nodeId('m-001'),
+      class: 'INFO',
+      payload: { kind: 'REQUEST', text: 'open pharmacy?' },
+    });
+    e.step(6);
+    const info = e.getSnapshot().metrics;
+    expect(info.byClass.INFO.uniqueReached).toBe(1); // m-003; m-002 is unregistered
+    expect(deliveryAudience(info, 'INFO')).toBe(2); // registered phones
+    expect(deliveryCoverage(info, 'INFO')).toBe(0.5);
+  });
+
+  it('coverage is 0 without an audience or without messages', () => {
+    const empty = emptyMetrics();
+    expect(deliveryCoverage(empty, 'INFO')).toBe(0);
+    expect(deliveryCoverage({ ...empty, phones: 10, citizenPhones: 8 }, 'CHECK_IN')).toBe(0);
   });
 });

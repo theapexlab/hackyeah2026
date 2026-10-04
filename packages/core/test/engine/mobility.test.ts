@@ -228,6 +228,29 @@ describe('walkers, cyclists and drivers on the Kraków map', () => {
     expect(distanceToStreets(state.terrain, walker)).toBeLessThanOrEqual(STREET_TOLERANCE_M);
   });
 
+  it('a random request comes from someone standing still, who stays put until it is settled', () => {
+    const state = krakowState({ tickSeconds: 2 });
+    for (let i = 0; i < 20; i++) runTick(state);
+    const requesters = new Set<string>();
+    for (let i = 0; i < 15; i++) {
+      applyCommand(state, { type: 'SendRandomRequest' });
+      const origin = state.messageList.at(-1)!.originId;
+      expect(movingAs(state.byId.get(origin)!), origin).toBeNull();
+      requesters.add(origin);
+    }
+    const count = () => MODES.map((m) => state.nodes.filter((n) => movingAs(n) === m).length);
+    const ttl = state.messageList.at(-1)!.ttlTicks;
+    for (let i = 0; i < ttl; i++) {
+      runTick(state);
+      expect(count(), `tick ${state.tick}`).toEqual([20, 10, 20]); // shares still hold
+      const open = [...state.transactions.values()].filter((tx) => tx.status !== 'closed');
+      for (const tx of open) expect(movingAs(state.byId.get(tx.requesterId)!)).toBeNull();
+    }
+    // all timed out now: the requesters are free to go again
+    runTick(state);
+    expect([...state.transactions.values()].every((tx) => tx.status === 'closed')).toBe(true);
+  });
+
   it('applies new shares on the next tick, and never moves explicit node lists', () => {
     const e = createEngine(WORLD, { mobility: { shares: SHARES } });
     const moving = (mode: TravelMode) => e.getSnapshot().nodes.filter((n) => n.travel === mode);

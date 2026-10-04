@@ -44,14 +44,14 @@ describe('flooding basics', () => {
 
     const r1 = e.step();
     expect(r1.tick).toBe(1);
-    expect(r1.transits).toEqual([
+    expect(r1.transits).toMatchObject([
       { tick: 1, msgId, class: 'BORROW', from: 'm-001', to: 'm-002', hop: 1, via: 'hop' },
     ]);
     expect(eventsOf(e, 'ORIGINATED')).toMatchObject([{ tick: 1, nodeId: 'm-001', msgId }]);
     expect(eventsOf(e, 'TX_OPENED')).toMatchObject([{ tick: 1, requestId: msgId }]);
 
     const r2 = e.step();
-    expect(r2.transits).toEqual([
+    expect(r2.transits).toMatchObject([
       { tick: 2, msgId, class: 'BORROW', from: 'm-002', to: 'm-003', hop: 2, via: 'hop' },
     ]);
     const r3 = e.step();
@@ -236,6 +236,19 @@ describe('trust', () => {
     });
   });
 
+  it('in L1 a forgery is not kept in custody: no later store-flush to phones that come into range', () => {
+    const e = engineFrom([mobile('m-001', 0, 0, 'none'), mobile('m-002', 500, 0)]);
+    e.dispatch({ type: 'SetCellsUp', up: false });
+    e.step(5);
+    e.dispatch(req('m-001', 'INFO', { forge: { claimKind: 'citizen' } }));
+    e.step();
+    expect(eventsOf(e, 'DROPPED')).toMatchObject([{ nodeId: 'm-001', reason: 'NO_ROUTE' }]);
+    expect(e.getNodeDetail(id('m-001')).store).toEqual([]);
+    e.dispatch({ type: 'MoveNode', nodeId: id('m-002'), x: 50, y: 0 });
+    expect(e.step().transits).toEqual([]);
+    expect(eventsOf(e, 'STORE_FLUSHED')).toEqual([]);
+  });
+
   it('an unregistered mobile without forgery is refused at the origin as UNVERIFIABLE', () => {
     const e = engineFrom([mobile('m-001', 0, 0, 'none'), mobile('m-002', 50, 0)]);
     e.dispatch(req('m-001', 'INFO'));
@@ -357,6 +370,26 @@ describe('degradation ladder', () => {
 });
 
 describe('store-and-forward', () => {
+  it('a request stays in its region: stamped at origin, never handed outside, released when carried out', () => {
+    const nodes = [mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 2000, 0)];
+    const e = engineFrom(nodes, {}, { width: 2200 });
+    e.dispatch({ type: 'SetCellsUp', up: false });
+    e.step(5);
+    e.dispatch(req('m-001', 'GIVE'));
+    expect(e.getSnapshot().messages.at(-1)!.region).toEqual({ x: 0, y: 0, r: 500 });
+    e.dispatch(req('m-001', 'LIFE_CRITICAL'));
+    expect(e.getSnapshot().messages.at(-1)!.region).toEqual({ x: 0, y: 0, r: 1000 });
+    e.step(2);
+    expect(e.getNodeDetail(id('m-002')).store).toHaveLength(2);
+
+    // m-002 drives off next to m-003, out of both regions: it lets go and hands nothing on
+    e.dispatch({ type: 'MoveNode', nodeId: id('m-002'), x: 1980, y: 0 });
+    expect(e.step().transits).toEqual([]);
+    expect(e.getNodeDetail(id('m-002')).store).toEqual([]);
+    expect(eventsOf(e, 'STORE_FLUSHED')).toEqual([]);
+    expect(eventsOf(e, 'DROPPED')).toEqual([]);
+  });
+
   it('an L1 island stores; MoveNode brings a phone in range; the next tick flushes and the one after delivers', () => {
     const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 500, 0)]);
     e.dispatch({ type: 'SetCellsUp', up: false });
@@ -373,8 +406,19 @@ describe('store-and-forward', () => {
     e.dispatch({ type: 'MoveNode', nodeId: id('m-002'), x: 50, y: 0 });
     expect(e.getSnapshot().edges).toHaveLength(1);
     const r7 = e.step();
+    // positions are those of the hand-off, so a trail stays true after the carrier moves on
     expect(r7.transits).toEqual([
-      { tick: 7, msgId, class: 'INFO', from: 'm-001', to: 'm-002', hop: 1, via: 'store-flush' },
+      {
+        tick: 7,
+        msgId,
+        class: 'INFO',
+        from: 'm-001',
+        to: 'm-002',
+        hop: 1,
+        via: 'store-flush',
+        fromPos: { x: 0, y: 0 },
+        toPos: { x: 50, y: 0 },
+      },
     ]);
     expect(eventsOf(e, 'STORE_FLUSHED')).toMatchObject([{ tick: 7, nodeId: 'm-001', to: 'm-002' }]);
     e.step();
@@ -396,7 +440,7 @@ describe('store-and-forward', () => {
   });
 
   it('a stored message is dropped TTL_EXPIRED once its TTL runs out', () => {
-    const e = engineFrom([mobile('m-001', 0, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0)], { tickSeconds: 1.5 }); // ttl 200 ticks
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5);
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200
@@ -521,11 +565,25 @@ describe('declared modes', () => {
     return line(10);
   }
 
+  it('a declaration lasts the same simulated time whatever the tick length', () => {
+    for (const [tickSeconds, ticks] of [
+      [0.05, 18_000],
+      [0.2, 4500],
+      [1, 900],
+    ] as const) {
+      const e = engineFrom(tenLine(), { tickSeconds });
+      e.dispatch({ type: 'DeclareMode', level: 'L1' });
+      expect(e.getSnapshot().declarations[0]!.untilTick).toBe(ticks);
+      e.step(ticks - 1);
+      expect(e.getSnapshot().nodes.every((n) => n.mode === 'L1')).toBe(true);
+    }
+  });
+
   it('L3: INFO is refused at the origin, relayed INFO is dropped at an L3 node, LIFE_CRITICAL is capped at 6 hops', () => {
     const e = engineFrom(tenLine());
     e.dispatch({ type: 'DeclareMode', level: 'L3' });
     expect(e.getSnapshot().declarations).toMatchObject([
-      { level: 'L3', region: null, fromTick: 0, untilTick: 300 },
+      { level: 'L3', region: null, fromTick: 0, untilTick: 4500 }, // 15 min of 200 ms ticks
     ]);
     e.step(3);
     expect(e.getSnapshot().nodes.every((n) => n.mode === 'L3' && n.declaredLevel === 'L3')).toBe(
@@ -787,7 +845,7 @@ describe('stage 3 hardening', () => {
   });
 
   it('a flushed copy that arrives after its TTL is dropped TTL_EXPIRED in flight', () => {
-    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 500, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 500, 0)], { tickSeconds: 1.5 });
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5);
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200
@@ -883,14 +941,14 @@ describe('event log cap', () => {
 
 describe('store expiry and flushing by current policy', () => {
   it('a powered-off node still expires its stored entries by TTL', () => {
-    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0)], { tickSeconds: 1.5 });
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5);
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200
     const msgId = lastMessageId(e);
-    e.step(2); // tick 6: m-001 -> m-002; tick 7: m-002 is a leaf and stores it
+    e.step(2); // tick 6: m-001 -> m-002 (keeping a copy); tick 7: m-002 is a leaf and stores it
     expect(eventsOf(e, 'STORED')).toMatchObject([{ tick: 7, nodeId: 'm-002', msgId }]);
-    expect(e.getSnapshot().metrics.storedTotal).toBe(1);
+    expect(e.getSnapshot().metrics.storedTotal).toBe(2); // both carry it
     e.dispatch({ type: 'SetNodePowered', nodeId: id('m-002'), powered: false });
     e.step(198); // tick 205: 5 + 200 is not < 205, the dead node still buffers it
     expect(e.getNodeDetail(id('m-002')).store).toHaveLength(1);
@@ -898,9 +956,10 @@ describe('store expiry and flushing by current policy', () => {
       alive: false,
       storeSize: 1,
     });
-    expect(e.getSnapshot().metrics.storedTotal).toBe(1);
-    e.step(); // tick 206: expired while powered off
+    expect(e.getSnapshot().metrics.storedTotal).toBe(2);
+    e.step(); // tick 206: expired, also while powered off
     expect(eventsOf(e, 'DROPPED')).toMatchObject([
+      { tick: 206, nodeId: 'm-001', msgId, reason: 'TTL_EXPIRED' },
       { tick: 206, nodeId: 'm-002', msgId, reason: 'TTL_EXPIRED' },
     ]);
     expect(e.getNodeDetail(id('m-002')).store).toEqual([]);
@@ -908,7 +967,9 @@ describe('store expiry and flushing by current policy', () => {
   });
 
   it('no flush after returning to PEACE: the emergency-era store is held until its TTL, then expires', () => {
-    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 500, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 500, 0)], {
+      tickSeconds: 1.5, // ttl 200 ticks
+    });
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5); // L1 everywhere
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200

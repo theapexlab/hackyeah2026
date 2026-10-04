@@ -4,7 +4,14 @@
  * theme/icons.ts.
  */
 import type { MantineTheme } from '@mantine/core';
-import type { DropReason, EdgeQuality, MessageClass, Mode, TravelMode } from '@pomoc/core';
+import type {
+  DropReason,
+  EdgeQuality,
+  MessageClass,
+  Mode,
+  NodeKind,
+  TravelMode,
+} from '@pomoc/core';
 
 /** Mantine palette names used by the simulation (subset of DefaultMantineColor). */
 export type MantineColorName =
@@ -24,6 +31,16 @@ export type MantineColorName =
   | 'dark';
 
 export type ColorScheme = 'light' | 'dark';
+
+/**
+ * Glyph opacity. Routers are the backdrop of the mesh (there are many of them), so they stay
+ * faded, and fade further when down; a selected or hovered router shows at full strength.
+ * Phones and gateways are opaque, dimmed when off.
+ */
+export function glyphOpacity(kind: NodeKind, alive: boolean, focused: boolean): number {
+  if (kind === 'router' && !focused) return alive ? 0.4 : 0.12;
+  return alive ? 1 : 0.35;
+}
 
 /** Marker colour of a phone on the move. */
 export const TRAVEL_COLOR: Readonly<Record<TravelMode, MantineColorName>> = {
@@ -145,6 +162,8 @@ export interface Palette {
   readonly worldStroke: string;
   readonly edge: Readonly<Record<EdgeQuality, string>>;
   readonly edgeWidth: number;
+  /** Router-to-router links: a faint backdrop, so phones and their links stand out. */
+  readonly edgeBackbone: string;
   readonly range: string;
   /** Basemap: street strokes, park and water fills, district and river captions. */
   readonly streetMinor: string;
@@ -209,6 +228,7 @@ export function resolvePalette(theme: MantineTheme, scheme: ColorScheme): Palett
       far: dark ? withAlpha(gray[6], 0.28) : withAlpha(gray[5], 0.4),
     },
     edgeWidth: 1.25,
+    edgeBackbone: dark ? withAlpha(gray[6], 0.16) : withAlpha(gray[5], 0.22),
     range: dark ? withAlpha(theme.colors.blue[4], 0.1) : withAlpha(theme.colors.blue[6], 0.08),
     streetMinor: dark ? withAlpha(gray[6], 0.4) : withAlpha(gray[4], 0.6),
     streetMajor: dark ? withAlpha(gray[5], 0.5) : withAlpha(gray[5], 0.75),

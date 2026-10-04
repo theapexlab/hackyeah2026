@@ -89,8 +89,10 @@ into the water or a park on the nearest allowed spot, and only the bridges cross
 street route to a destination (walks 120–600 m, sometimes into a park and back; rides
 300–1500 m; drives 500–2000 m), stops and lingers there for 30 s to 5 min, then sets off again
 on foot, by bike or by car, whichever is short of people, or stays put for good while someone
-else sets off. Everyone else stays still. Travellers carry
-stored messages between islands. Any other seed draws a procedural district of the configured size. Click any device, or the Authority badge, to inspect its inbox, store-and-forward
+else sets off. Everyone else stays still. In an emergency mode
+every phone and router that receives a message keeps a copy for five simulated minutes and
+hands it to anyone who comes into range without it (walkers, cyclists and drivers carry it
+between islands); only then is the copy dropped. Any other seed draws a procedural district of the configured size. Click any device, or the Authority badge, to inspect its inbox, store-and-forward
 buffer and log, and to act from it (send a request, accept one, check in, declare a level,
 broadcast an alert, cut power). A lime badge on a phone counts the requests it currently sees
 as open.

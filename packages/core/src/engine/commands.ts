@@ -12,11 +12,12 @@ import {
   classAllowedToOriginate,
   isPriced,
   isRelayOnlyClass,
+  requestRadiusM,
 } from '../policies/classes';
 import { canOriginate } from '../policies/trust';
 import { placeNode } from '../terrain/placement';
 import { createAuthorityMessage, inject } from './authority';
-import { resetTrip } from './mobility';
+import { resetTrip, secondsToTicks } from './mobility';
 import { createMessage, queueOrigination } from './originate';
 import type { EngineState } from './state';
 import { logEvent, recordDrop, resetWorld } from './state';
@@ -87,7 +88,8 @@ interface OriginateFromNodeOptions {
 
 /**
  * Validate and queue a node-originated message. A forgery skips validation and is
- * stamped signer { credentialKind: claimKind, valid: false }. A rejected message is
+ * stamped signer { credentialKind: claimKind, valid: false }. A REQUEST gets a region
+ * centred on the node (requestRadiusM). A rejected message is
  * still registered (so the event can be looked up) but logged as DROPPED at the origin
  * instead of being queued. Returns the queued message or null.
  */
@@ -99,17 +101,22 @@ function originateFromNode(
   opts: OriginateFromNodeOptions,
 ): Message | null {
   const policy = MODE_POLICIES[node.mode];
-  const hopOpt = opts.hopLimit === undefined ? {} : { hopLimit: opts.hopLimit };
+  const baseOpts = {
+    ...(opts.hopLimit === undefined ? {} : { hopLimit: opts.hopLimit }),
+    ...(payload.kind === 'REQUEST'
+      ? { region: { x: node.x, y: node.y, r: requestRadiusM(cls) } }
+      : {}),
+  };
   if (opts.forge !== undefined) {
     const msg = createMessage(state, node, cls, payload, {
-      ...hopOpt,
+      ...baseOpts,
       signer: { nodeId: node.id, credentialKind: opts.forge.claimKind, valid: false },
     });
     queueOrigination(node, msg);
     return msg;
   }
   const reason = originRejection(node, policy, cls, payload);
-  const msg = createMessage(state, node, cls, payload, hopOpt);
+  const msg = createMessage(state, node, cls, payload, baseOpts);
   if (reason !== null) {
     recordDrop(state, node.id, msg, reason);
     return null;
@@ -167,8 +174,13 @@ function sendRandomRequest(state: EngineState, from: NodeId | undefined): void {
   if (from !== undefined) {
     node = state.byId.get(from);
   } else {
+    // only someone standing still: a requester stays put until the request is settled
     const candidates = state.nodes.filter(
-      (n) => n.alive && n.kind === 'mobile' && n.credential.kind === 'citizen',
+      (n) =>
+        n.alive &&
+        n.kind === 'mobile' &&
+        n.credential.kind === 'citizen' &&
+        n.walk?.phase !== 'moving',
     );
     if (candidates.length > 0) node = state.prng.pick(candidates);
   }
@@ -295,7 +307,8 @@ export function applyCommand(state: EngineState, input: Command): void {
       patchConfig(state, cmd.patch);
       return;
     case 'DeclareMode': {
-      const duration = cmd.durationTicks ?? cfg.declarationDurationTicks;
+      const duration =
+        cmd.durationTicks ?? secondsToTicks(cfg.declarationDurationSeconds, cfg.tickSeconds);
       const untilTick = state.tick + duration;
       const regionOpt = cmd.region === undefined ? {} : { region: cmd.region };
       const msg = createAuthorityMessage(
