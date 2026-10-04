@@ -258,6 +258,12 @@ golangci-lint's GPL-3.0 and Temurin's GPL-2.0, do not reach its code.
 
 The secret key in these files is the public RFC 8032 test key. It is not a credential.
 
+## Disclosure
+
+The prototype's code, tests and documentation were written with AI assistance (Claude Code). The
+Disclosure section of the [root README](../../README.md#disclosure) covers only the concept, research
+and documentation, so this section adds the prototype code to it.
+
 ## Related
 
 - [Concept](../../docs/concept.md)
