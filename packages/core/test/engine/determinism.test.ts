@@ -39,6 +39,9 @@ const script: readonly { tick: number; command: Command }[] = [
   { tick: 280, command: { type: 'SendRandomRequest' } },
 ];
 
+/** A fixed, modest world so the runs do not depend on the (tunable, large) defaults. */
+const WORLD = { mobiles: 150, routers: 100, gateways: 2 } as const;
+
 interface Run {
   readonly engine: SimEngine;
   /** Transits of every tick in order (index = tick - 1), straight from each TickResult. */
@@ -46,7 +49,7 @@ interface Run {
 }
 
 function run(seed: number, until: number, betweenSteps?: (e: SimEngine) => void): Run {
-  const engine = createEngine({ seed });
+  const engine = createEngine({ ...WORLD, seed });
   const transits: (readonly TransitEvent[])[] = [];
   const stepOnce = () => {
     transits.push(engine.step().transits);
@@ -131,7 +134,7 @@ describe('determinism (FR-SIM-05)', () => {
   });
 
   it('replay lines up with a ResetWorld in the log when started from initialWorld', () => {
-    const live = createEngine({ seed: 42 });
+    const live = createEngine({ ...WORLD, seed: 42 });
     live.step(5);
     live.dispatch({ type: 'SendRandomRequest' });
     live.dispatch({ type: 'AutoRespond' });

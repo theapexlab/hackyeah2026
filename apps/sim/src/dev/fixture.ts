@@ -361,6 +361,9 @@ export function makeFixtureSnapshot(tick = 0): Snapshot {
       storedTotal: nodes.reduce((sum, n) => sum + n.storeSize, 0),
       transitsThisTick: transits.length,
       totals: { originated: 6, delivered: 43, dropped: 16 },
+      phones: nodes.filter((n) => n.kind === 'mobile').length,
+      citizenPhones: nodes.filter((n) => n.kind === 'mobile' && n.credentialKind === 'citizen')
+        .length,
     },
     recentEvents: events,
   };

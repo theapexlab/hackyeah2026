@@ -13,7 +13,7 @@ export interface OriginateOptions {
    * maxHopLimit for REQUEST payloads only.
    */
   readonly hopLimit?: number;
-  /** Lifetime in ticks; defaults to ttlFor(policy, class). */
+  /** Lifetime in ticks; defaults to ttlFor(policy, class, config.tickSeconds). */
   readonly ttl?: number;
   readonly region?: Circle;
   /** Replaces the honest signer (used for forgeries). */
@@ -23,7 +23,7 @@ export interface OriginateOptions {
 /**
  * Create and register a message. Assigns the next message seq, the id
  * `<originId>#<seq>`, createdTick = the current tick (the dispatch tick for commands),
- * ttl = opts.ttl ?? ttlFor(policy, class) and
+ * ttl = opts.ttl ?? ttlFor(policy, class, config.tickSeconds) and
  * hopLimit = opts.hopLimit ?? policy.hopLimit (NaN counts as not requested), clamped to
  * policy.maxHopLimit for REQUEST payloads only, or POSITIVE_INFINITY for authority /
  * unbounded classes. The policy is the origin node's
@@ -64,7 +64,7 @@ export function createMessage(
     originId,
     signer,
     createdTick: state.tick,
-    ttlTicks: opts.ttl ?? ttlFor(policy, cls),
+    ttlTicks: opts.ttl ?? ttlFor(policy, cls, state.config.tickSeconds),
     hopLimit,
   };
   const msg: Message = opts.region === undefined ? base : { ...base, region: opts.region };

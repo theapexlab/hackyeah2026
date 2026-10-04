@@ -396,7 +396,7 @@ describe('store-and-forward', () => {
   });
 
   it('a stored message is dropped TTL_EXPIRED once its TTL runs out', () => {
-    const e = engineFrom([mobile('m-001', 0, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0)], { tickSeconds: 1.5 }); // ttl 200 ticks
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5);
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200
@@ -787,7 +787,7 @@ describe('stage 3 hardening', () => {
   });
 
   it('a flushed copy that arrives after its TTL is dropped TTL_EXPIRED in flight', () => {
-    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 500, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 500, 0)], { tickSeconds: 1.5 });
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5);
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200
@@ -883,14 +883,14 @@ describe('event log cap', () => {
 
 describe('store expiry and flushing by current policy', () => {
   it('a powered-off node still expires its stored entries by TTL', () => {
-    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0)], { tickSeconds: 1.5 });
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5);
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200
     const msgId = lastMessageId(e);
-    e.step(2); // tick 6: m-001 -> m-002; tick 7: m-002 is a leaf and stores it
+    e.step(2); // tick 6: m-001 -> m-002 (keeping a copy); tick 7: m-002 is a leaf and stores it
     expect(eventsOf(e, 'STORED')).toMatchObject([{ tick: 7, nodeId: 'm-002', msgId }]);
-    expect(e.getSnapshot().metrics.storedTotal).toBe(1);
+    expect(e.getSnapshot().metrics.storedTotal).toBe(2); // both carry it
     e.dispatch({ type: 'SetNodePowered', nodeId: id('m-002'), powered: false });
     e.step(198); // tick 205: 5 + 200 is not < 205, the dead node still buffers it
     expect(e.getNodeDetail(id('m-002')).store).toHaveLength(1);
@@ -898,9 +898,10 @@ describe('store expiry and flushing by current policy', () => {
       alive: false,
       storeSize: 1,
     });
-    expect(e.getSnapshot().metrics.storedTotal).toBe(1);
-    e.step(); // tick 206: expired while powered off
+    expect(e.getSnapshot().metrics.storedTotal).toBe(2);
+    e.step(); // tick 206: expired, also while powered off
     expect(eventsOf(e, 'DROPPED')).toMatchObject([
+      { tick: 206, nodeId: 'm-001', msgId, reason: 'TTL_EXPIRED' },
       { tick: 206, nodeId: 'm-002', msgId, reason: 'TTL_EXPIRED' },
     ]);
     expect(e.getNodeDetail(id('m-002')).store).toEqual([]);
@@ -908,7 +909,9 @@ describe('store expiry and flushing by current policy', () => {
   });
 
   it('no flush after returning to PEACE: the emergency-era store is held until its TTL, then expires', () => {
-    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 500, 0)]);
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 500, 0)], {
+      tickSeconds: 1.5, // ttl 200 ticks
+    });
     e.dispatch({ type: 'SetCellsUp', up: false });
     e.step(5); // L1 everywhere
     e.dispatch(req('m-001', 'INFO')); // created at tick 5, L1 ttl 200

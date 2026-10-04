@@ -158,6 +158,11 @@ function populateWorld(state: EngineState, world: WorldConfig, nodes?: readonly 
   };
   state.components = emptyComponents();
   state.metrics.reset();
+  const phones = list.filter((n) => n.kind === 'mobile');
+  state.metrics.setPopulation({
+    phones: phones.length,
+    citizenPhones: phones.filter((n) => n.credential.kind === 'citizen').length,
+  });
   state.lastTick = null;
 }
 

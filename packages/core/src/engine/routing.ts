@@ -51,8 +51,10 @@ function send(
  *  - a RESPONSE with a routeCursor is unicast to returnPath[cursor+1] when that node is
  *    a current neighbour; otherwise it falls back to flooding (FR-NET-07) and the copies
  *    carry no cursor, so downstream nodes flood too;
- *  - flooding targets every neighbour except lastHop; with none, the packet is stored
- *    when the policy has storeAndForward (STORED) or dropped NO_ROUTE.
+ *  - flooding targets every neighbour except lastHop. When the policy has storeAndForward
+ *    the node also keeps a custody copy (FR-NET-08) that flushStores hands to every later
+ *    neighbour until the TTL runs out; STORED is logged only when nobody took it right
+ *    away. Without storeAndForward and with nobody to send to: DROPPED NO_ROUTE.
  */
 export function forwardOrStore(
   state: EngineState,
@@ -82,31 +84,36 @@ export function forwardOrStore(
     // path broken: flood fallback below
   }
 
-  let sent = 0;
+  const sentTo = new Set<NodeId>();
+  if (packet.lastHop !== null) sentTo.add(packet.lastHop);
   for (const id of node.neighbourIds) {
     if (id === packet.lastHop) continue;
     const target = state.byId.get(id);
     if (target === undefined) continue;
     send(state, node, target, msg, packet, 'hop', undefined, transits);
-    sent++;
+    sentTo.add(id);
   }
-  if (sent > 0) return true;
+  const sent = sentTo.size - (packet.lastHop !== null ? 1 : 0);
 
   if (policy.storeAndForward) {
-    const sentTo = new Set<NodeId>();
-    if (packet.lastHop !== null) sentTo.add(packet.lastHop);
+    // Custody (FR-NET-08): keep a copy until the TTL runs out and hand it to every new
+    // neighbour; STORED is logged only when nobody could take it right away.
     node.store.push({ msgId: msg.id, packet, storedTick: state.tick, sentTo });
-    logEvent(state, { type: 'STORED', tick: state.tick, msgId: msg.id, nodeId: node.id });
+    if (sent === 0) {
+      logEvent(state, { type: 'STORED', tick: state.tick, msgId: msg.id, nodeId: node.id });
+    }
     return true;
   }
+  if (sent > 0) return true;
   recordDrop(state, node.id, msg, 'NO_ROUTE');
   return false;
 }
 
 /**
  * Store-and-forward flush (FR-NET-08): every stored entry goes to each current neighbour
- * it has not been sent to yet (via 'store-flush', STORE_FLUSHED). Entries stay until
- * their TTL runs out, so the node keeps acting as a data mule.
+ * it has not been sent to yet (via 'store-flush', STORE_FLUSHED). A neighbour that already
+ * has the message, or is receiving it this tick, is skipped, as epidemic routing's
+ * summary-vector exchange would tell the carrier. Entries stay until their TTL runs out, so the node keeps acting as a data mule.
  */
 export function flushStores(state: EngineState, node: Node, transits: TransitEvent[]): void {
   for (const entry of node.store) {
@@ -117,6 +124,8 @@ export function flushStores(state: EngineState, node: Node, transits: TransitEve
       const target = state.byId.get(id);
       if (target === undefined) continue;
       entry.sentTo.add(id);
+      // already has it, or is receiving it this tick from another carrier
+      if (target.seen.has(msg.id) || target.nextInbox.some((p) => p.msgId === msg.id)) continue;
       send(state, node, target, msg, entry.packet, 'store-flush', undefined, transits);
       logEvent(state, {
         type: 'STORE_FLUSHED',

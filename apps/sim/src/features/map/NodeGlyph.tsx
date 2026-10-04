@@ -5,6 +5,7 @@ import { type MouseEvent, memo } from 'react';
 import { formatKind } from '../../lib/format';
 import { KIND_ICON, TRAVEL_ICON } from '../../theme/icons';
 import {
+  glyphOpacity,
   MODE_LABEL,
   modeColorVar,
   OPEN_REQUEST_COLOR,
@@ -91,7 +92,7 @@ const NodeBody = memo(function NodeBody({
         data-node={id}
         transform={hovered ? 'scale(1.15)' : undefined}
         className="pomoc-node"
-        style={{ opacity: alive ? 1 : 0.35 }}
+        style={{ opacity: glyphOpacity(kind, alive, selected || hovered) }}
         onClick={(event) => handleClick(event, id)}
         onDoubleClick={(event) => handleDoubleClick(event, id)}
         onPointerEnter={() => useUiStore.getState().hover(id)}

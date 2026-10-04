@@ -172,8 +172,13 @@ export { boundedBfs } from './graph/bfs';
 export type { Components } from './graph/components';
 export { connectedComponents } from './graph/components';
 export { dist2, distance, insideCircle, qualityBucket } from './graph/distance';
-export type { TickMetrics, TopologyMetrics } from './metrics/metrics';
-export { MetricsState, medianOfHistogram } from './metrics/metrics';
+export type { Population, TickMetrics, TopologyMetrics } from './metrics/metrics';
+export {
+  deliveryAudience,
+  deliveryCoverage,
+  MetricsState,
+  medianOfHistogram,
+} from './metrics/metrics';
 export {
   AUTHORITY_CLASSES,
   CITIZEN_REQUEST_CLASSES,

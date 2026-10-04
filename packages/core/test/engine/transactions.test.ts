@@ -299,8 +299,11 @@ describe('autoConfirm off', () => {
 
 describe('request expiry (TTL)', () => {
   it('retires an expired request everywhere: tx closed without a CLOSE, views pruned, AutoRespond serves the fresh one', () => {
-    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 100, 0)]);
-    e.dispatch(request('m-001')); // A: created at tick 0, PEACE ttl 120
+    // 2.5 s ticks: the five-minute lifetime is 120 ticks
+    const e = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0), mobile('m-003', 100, 0)], {
+      tickSeconds: 2.5,
+    });
+    e.dispatch(request('m-001')); // A: created at tick 0, ttl 120
     const a = lastMessageId(e);
     e.step(3);
     expect(viewOf(e, 'm-002')).toEqual(['open']);
@@ -354,7 +357,7 @@ describe('request expiry (TTL)', () => {
   it('acceptEligibility reports EXPIRED for a request past its TTL and the open list skips it', () => {
     const state = createState(
       resolveWorldConfig({ width: 1000, height: 700 }),
-      resolveEngineConfig(),
+      resolveEngineConfig({ tickSeconds: 2.5 }), // ttl 120 ticks
       [mobile('m-001', 0, 0), mobile('m-002', 50, 0)],
     );
     refreshTopology(state);

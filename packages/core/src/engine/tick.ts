@@ -216,7 +216,10 @@ function deliverLocally(state: EngineState, node: Node, msg: Message, packet: Pa
     class: msg.class,
     hop: packet.hop,
   });
-  state.metrics.onDelivered(msg.class, msg.id, node.id, packet.hop, state.tick - msg.createdTick);
+  // Delivery metrics measure people reached: phones only (routers and gateways relay).
+  if (node.kind === 'mobile') {
+    state.metrics.onDelivered(msg.class, msg.id, node.id, packet.hop, state.tick - msg.createdTick);
+  }
   const payload = msg.payload;
   switch (payload.kind) {
     case 'MODE_DECLARATION':

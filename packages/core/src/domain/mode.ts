@@ -23,7 +23,11 @@ export interface ModePolicy {
    * default 3, max 6). A requested hopLimit is clamped to it at origination.
    */
   readonly maxHopLimit: number;
-  readonly ttlTicks: number;
+  /**
+   * Lifetime of a message originated in this mode, in simulated seconds (turned into ticks
+   * with EngineConfig.tickSeconds). Stored copies are carried until then, then dropped.
+   */
+  readonly ttlSeconds: number;
   readonly storeAndForward: boolean;
   readonly phoneTopologyGossip: boolean;
   readonly paymentsAllowed: boolean;
@@ -50,6 +54,9 @@ const PEACE_ORIGIN: readonly MessageClass[] = [
 const L1_ORIGIN: readonly MessageClass[] = ['LIFE_CRITICAL', 'SAFETY', 'CHECK_IN', 'INFO', 'GIVE'];
 const L3_ORIGIN: readonly MessageClass[] = ['LIFE_CRITICAL', 'SAFETY', 'CHECK_IN'];
 
+/** Five minutes of simulated time: how long every node keeps a message before dropping it. */
+export const MESSAGE_TTL_S = 300;
+
 /** Policy presets per mode, encoded from docs/concept.md "Emergency mode: levels and policy". */
 export const MODE_POLICIES: Readonly<Record<Mode, ModePolicy>> = {
   PEACE: {
@@ -58,7 +65,7 @@ export const MODE_POLICIES: Readonly<Record<Mode, ModePolicy>> = {
     relayClasses: [...PEACE_ORIGIN, 'CHECK_IN', ...AUTHORITY_AND_GOSSIP],
     hopLimit: 3,
     maxHopLimit: 6,
-    ttlTicks: 120,
+    ttlSeconds: MESSAGE_TTL_S,
     storeAndForward: false,
     phoneTopologyGossip: true,
     paymentsAllowed: true,
@@ -71,7 +78,7 @@ export const MODE_POLICIES: Readonly<Record<Mode, ModePolicy>> = {
     relayClasses: [...L1_ORIGIN, ...AUTHORITY_AND_GOSSIP],
     hopLimit: 10,
     maxHopLimit: 10,
-    ttlTicks: 200,
+    ttlSeconds: MESSAGE_TTL_S,
     storeAndForward: true,
     phoneTopologyGossip: true,
     paymentsAllowed: false,
@@ -84,7 +91,7 @@ export const MODE_POLICIES: Readonly<Record<Mode, ModePolicy>> = {
     relayClasses: [...L1_ORIGIN, ...AUTHORITY_AND_GOSSIP],
     hopLimit: 15,
     maxHopLimit: 15,
-    ttlTicks: 300,
+    ttlSeconds: MESSAGE_TTL_S,
     storeAndForward: true,
     phoneTopologyGossip: true,
     paymentsAllowed: false,
@@ -97,7 +104,7 @@ export const MODE_POLICIES: Readonly<Record<Mode, ModePolicy>> = {
     relayClasses: [...L3_ORIGIN, ...AUTHORITY_AND_GOSSIP],
     hopLimit: 6,
     maxHopLimit: 6,
-    ttlTicks: 120,
+    ttlSeconds: MESSAGE_TTL_S,
     storeAndForward: true,
     phoneTopologyGossip: false,
     paymentsAllowed: false,
@@ -118,9 +125,12 @@ export function hopLimitFor(policy: ModePolicy, cls: MessageClass): number {
   return UNBOUNDED_CLASSES.includes(cls) ? Number.POSITIVE_INFINITY : policy.maxHopLimit;
 }
 
-/** TTL in ticks a node in `policy` assigns to a message of `cls` it originates. */
-export function ttlFor(policy: ModePolicy, _cls: MessageClass): number {
-  return policy.ttlTicks;
+/**
+ * TTL in ticks a node in `policy` assigns to a message of `cls` it originates: the policy's
+ * lifetime in seconds at `tickSeconds` per tick (at least one tick).
+ */
+export function ttlFor(policy: ModePolicy, _cls: MessageClass, tickSeconds: number): number {
+  return Math.max(1, Math.round(policy.ttlSeconds / Math.max(1e-6, tickSeconds)));
 }
 
 /** True for every mode except PEACE. */
