@@ -51,9 +51,9 @@ simulation is about mesh behaviour.
 
 ## Prototype
 
-[`apps/prototype`](apps/prototype/README.md) holds a working prototype of the protocol and services
-in Go and Kotlin, running as containers on one machine; its README says what works today and what is
-left.
+[`apps/prototype`](apps/prototype/README.md) holds a partly built prototype of the protocol and
+services: Go services running as containers on one machine, and the start of a Kotlin phone SDK. Its
+README says what works today and what is left.
 
 ## Running the simulation
 

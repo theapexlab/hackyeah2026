@@ -1,6 +1,6 @@
 # Pomóc open specification
 
-The wire format, credential profile, forwarding rules and mode policy, written so that a second
+The open specification of the Pomóc protocol, written so that a second
 implementation can interoperate (NFR-INT-01). The JSON vectors in `testvectors/` are shared by the
 Go library and the Kotlin SDK, so a rule both languages must agree on is a vector here before it is
 code in either.

@@ -10,7 +10,8 @@ end on a small network. It shares no code with the simulation.
 
 ## Status
 
-The prototype runs end to end on a three-node line and passes all its tests. The protocol core is
+The prototype runs end to end on a three-node line, and `task check`, `task test:integration` and
+`task test:e2e` pass. The protocol core is
 partly built. The certificate authority, the phone SDK, the real radio emulation and the authority
 dashboard are not built yet.
 
@@ -31,8 +32,8 @@ dashboard are not built yet.
 
 A phone container signs one `LIFE_CRITICAL` request ("AED needed now") with Ed25519 and sends it
 through the broker. The relay verifies the signature and forwards it. The gateway verifies it again
-and posts it over HTTP to the server, which lists it on its page. Every node logs one JSON decision
-line per frame, defined in [`apps/prototype/spec/log-events.md`](spec/log-events.md).
+and posts it over HTTP to the server, which lists it on its page. The relay and the gateway each log
+one JSON decision line per frame, defined in [`apps/prototype/spec/log-events.md`](spec/log-events.md).
 
 The Go protocol library in `apps/prototype/go/protocol/` has:
 
@@ -55,14 +56,12 @@ These are simplifications in working code. None blocks the demo.
 - The broker and its clients set no read deadlines, and a slow neighbour blocks the sender.
 - The server keeps every message it receives with no limit and no de-duplication.
 - Nodes do not count hops yet, so every decision line says `"hop": 0`.
-- The relay and the server decode each frame three times.
 - Some services log plain text lines among the JSON lines.
-- No continuous integration runs. The tests run locally through `task`.
 
 ## What is left, in order
 
-The work is split into eight phases. Each depends only on the ones named beside it, so phases 2, 3
-and the codec part of 4 can run in parallel once phase 1 is done.
+Each phase depends only on the phases named beside it. Phases 2 and 3 can start in parallel once
+phase 1 is done.
 
 | Phase | Builds | Depends on | State |
 |---|---|---|---|
@@ -105,7 +104,7 @@ Open questions for phase 1:
 
 ### Target design
 
-When phase 6 is done, the same containers run a whole district:
+When phase 6 is done, the stack grows to run a whole district:
 
 ```
  phone (Kotlin host, N virtual phones)      router (relay)              gateway (relay with backhaul)
@@ -149,7 +148,8 @@ the version it wanted.
 | `mise exec -- task test:integration` | A testcontainers smoke test | yes |
 | `mise exec -- task test:e2e` | Builds the images, starts `compose.yaml`, sends a request, checks the server page and the decision lines | yes |
 
-Each prints `ok` per Go package, and `task check` ends with `BUILD SUCCESSFUL` from Gradle.
+Each prints `ok` per Go package, and `task check` ends with `BUILD SUCCESSFUL` from Gradle. No
+continuous integration is set up; the tests run locally.
 
 ### Demo by hand
 
@@ -171,7 +171,7 @@ the gateway logs `"decision":"post"`, both with `"reason":"valid"`. Stop with `d
 
 | Path | What it is |
 |---|---|
-| `apps/prototype/go/protocol/` | The protocol library. Pure Go, no network or disk access |
+| `apps/prototype/go/protocol/` | The protocol library. Pure Go with no network access; only the `vectors` subpackage reads files |
 | `apps/prototype/go/internal/` | The services: `broker`, `relay` (also the gateway), `euserver`, `phone`, and `svc` for logging and health checks |
 | `apps/prototype/go/cmd/` | One `main.go` per binary, plus `vectors`, which regenerates the shared test vectors |
 | `apps/prototype/kotlin/` | Gradle build for `pomoc-sdk`. Today it holds the test-vector checks only |
@@ -218,8 +218,6 @@ cache and Gradle cache.
 
 ### Build and development tools
 
-None of these ships in an image.
-
 | Tool | Version | Used for | Licence |
 |---|---|---|---|
 | [Go](https://go.dev) | 1.27.1 | Compiler and toolchain | BSD-3-Clause |
@@ -235,8 +233,8 @@ None of these ships in an image.
 | [mise](https://mise.jdx.dev) | any | Installs the pinned tools | MIT |
 | Docker Engine, Buildx, Compose | any recent | Images and the local stack | Apache-2.0 |
 
-golangci-lint is GPL-3.0. It only reads the source and is never linked into or shipped with the
-prototype, so the GPL does not reach the prototype's own code.
+None of these tools is linked into or shipped with the prototype, so their licences, including
+golangci-lint's GPL-3.0 and Temurin's GPL-2.0, do not reach its code.
 
 ### Container images
 

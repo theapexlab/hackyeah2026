@@ -83,8 +83,9 @@ CREDENTIAL_ANNOUNCE carries the 125-byte compact credential. CREDENTIAL_REQUEST 
 that is being asked for.
 
 The payload budget is for a message without free text. A message with free text may reach 1 KB
-(NFR-PERF-01). A payload layout per class is specified with its class: the CAP subset in
-`cap-codes.md`, the declaration in `mode-policy.md`, the announce in `credential-profile.md`.
+(NFR-PERF-01). A payload layout per class will be specified with its class: the CAP subset in
+`cap-codes.md`, the declaration in `mode-policy.md`, the announce in `credential-profile.md`. None of
+the three is written yet.
 
 ## Size budget
 

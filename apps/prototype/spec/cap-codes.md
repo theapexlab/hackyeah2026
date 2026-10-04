@@ -1,3 +1,3 @@
 # cap-codes
 
-Not written yet. See the status section of the prototype README.
+Not written yet. See the [phase 1 steps](../README.md#what-is-left-in-order) of the prototype README.
