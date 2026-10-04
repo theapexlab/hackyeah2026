@@ -1,0 +1,92 @@
+{
+  "name": "wycheproof-ed25519-sample",
+  "source": "C2SP/wycheproof testvectors_v1/ed25519_test.json (google-wycheproof 0.9rc5, Apache-2.0), the first test of each result and flag pair, copied unchanged",
+  "input": {
+    "cases": [
+      {
+        "tcId": 1,
+        "flag": "Valid",
+        "public_key_hex": "7d4d0e7f6153a69b6242b522abbee685fda4420f8834b108c3bdae369ef549fa",
+        "message_hex": "",
+        "signature_hex": "d4fbdb52bfa726b44d1786a8c0d171c3e62ca83c9e5bbe63de0bb2483f8fd6cc1429ab72cafc41ab56af02ff8fcc43b99bfe4c7ae940f60f38ebaa9d311c4007",
+        "result": "valid"
+      },
+      {
+        "tcId": 10,
+        "flag": "InvalidSignature",
+        "public_key_hex": "7d4d0e7f6153a69b6242b522abbee685fda4420f8834b108c3bdae369ef549fa",
+        "message_hex": "3f",
+        "signature_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "result": "invalid"
+      },
+      {
+        "tcId": 30,
+        "flag": "TruncatedSignature",
+        "public_key_hex": "7d4d0e7f6153a69b6242b522abbee685fda4420f8834b108c3bdae369ef549fa",
+        "message_hex": "54657374",
+        "signature_hex": "",
+        "result": "invalid"
+      },
+      {
+        "tcId": 33,
+        "flag": "SignatureWithGarbage",
+        "public_key_hex": "7d4d0e7f6153a69b6242b522abbee685fda4420f8834b108c3bdae369ef549fa",
+        "message_hex": "54657374",
+        "signature_hex": "7c38e026f29e14aabd059a0f2db8b0cd783040609a8be684db12f82a27774ab07a9155711ecfaf7f99f277bad0c6ae7e39d4eef676573336a5c51eb6f946b30d2020",
+        "result": "invalid"
+      },
+      {
+        "tcId": 38,
+        "flag": "CompressedSignature",
+        "public_key_hex": "7d4d0e7f6153a69b6242b522abbee685fda4420f8834b108c3bdae369ef549fa",
+        "message_hex": "546573743137",
+        "signature_hex": "93de3ca252426c95f735cb9edd92e83321ac62372d5aa5b379786bae111ab6b17251330e8f9a7c30d6993137c596007d7b001409287535ac4804e662bc58a3",
+        "result": "invalid"
+      },
+      {
+        "tcId": 42,
+        "flag": "InvalidEncoding",
+        "public_key_hex": "7d4d0e7f6153a69b6242b522abbee685fda4420f8834b108c3bdae369ef549fa",
+        "message_hex": "313233343030",
+        "signature_hex": "647c1492402ab5ce03e2c3a7f0384d051b9cf3570f1207fc78c1bcc98c281c2b1d125e5538f38afbcc1c84e489521083041d24bc6240767029da063271a1ff0c",
+        "result": "invalid"
+      },
+      {
+        "tcId": 63,
+        "flag": "SignatureMalleability",
+        "public_key_hex": "7d4d0e7f6153a69b6242b522abbee685fda4420f8834b108c3bdae369ef549fa",
+        "message_hex": "54657374",
+        "signature_hex": "7c38e026f29e14aabd059a0f2db8b0cd783040609a8be684db12f82a27774ab067654bce3832c2d76f8f6f5dafc08d9339d4eef676573336a5c51eb6f946b31d",
+        "result": "invalid"
+      },
+      {
+        "tcId": 80,
+        "flag": "Ktv",
+        "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "message_hex": "",
+        "signature_hex": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+        "result": "valid"
+      },
+      {
+        "tcId": 85,
+        "flag": "InvalidKtv",
+        "public_key_hex": "100fdf47fb94f1536a4f7c3fda27383fa03375a8f527c537e6f1703c47f94f86",
+        "message_hex": "6a0bc2b0057cedfc0fa2e3f7f7d39279b30f454a69dfd1117c758d86b19d85e0",
+        "signature_hex": "0971f86d2c9c78582524a103cb9cf949522ae528f8054dc20107d999be673ff4e25ebf2f2928766b1248bec6e91697775f8446639ede46ad4df4053000000010",
+        "result": "invalid"
+      },
+      {
+        "tcId": 119,
+        "flag": "TinkOverflow",
+        "public_key_hex": "4abfb535313705a6570018440cdec1a3ae33e51f352112fa6acbd0c6bc3ea859",
+        "message_hex": "321b5f663c19e30ee7bbb85e48ecf44db9d3f512",
+        "signature_hex": "f296715e855d8aecccba782b670163dedc4458fe4eb509a856bcac450920fd2e95a3a3eb212d2d9ccaf948c39ae46a2548af125f8e2ad9b77bd18f92d59f9200",
+        "result": "valid"
+      }
+    ]
+  },
+  "intermediates": {},
+  "output": {},
+  "expect": "per case",
+  "diagnostic": "One case per Wycheproof category. A case is valid when its result is valid; every verifier of a signed message must agree with each result."
+}

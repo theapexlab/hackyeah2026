@@ -49,6 +49,12 @@ flooding with hop limits, TTL and de-duplication, and store-and-forward via movi
 vision, not of the simulation. Cryptography is standard and not simulated; the
 simulation is about mesh behaviour.
 
+## Prototype
+
+Beyond the hackathon deliverable, [`apps/prototype`](apps/prototype/README.md) holds a partly built
+prototype of the protocol and services: Go services running as containers on one machine, with real
+signatures, and the start of a Kotlin phone SDK. Its README says what works today and what is left.
+
 ## Running the simulation
 
 The hackathon deliverable is a browser-only simulation of the protocol on a district graph.

@@ -1,0 +1,60 @@
+version: "3"
+
+env:
+  DOCKER_HOST:
+    sh: |
+      orb="$HOME/.orbstack/run/docker.sock"
+      if [ -n "$DOCKER_HOST" ]; then echo "$DOCKER_HOST"; elif [ -S "$orb" ]; then echo "unix://$orb"; fi
+  TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
+
+tasks:
+  doctor:
+    desc: Print the pinned tool versions and check the Docker daemon
+    env:
+      DOCTOR_REQUIRE_DOCKER: "1"
+    cmds:
+      - mise exec -- ./scripts/doctor.sh
+
+  doctor:test:
+    desc: Test the version matcher used by doctor
+    cmds:
+      - ./scripts/doctor_test.sh
+
+  test:integration:
+    desc: Run the testcontainers integration tests
+    dir: e2e
+    cmds:
+      - mise exec -- go test -count=1 -tags integration ./smoke/...
+
+  build:
+    desc: Build the service images with docker buildx bake
+    cmds:
+      - mise exec -- docker buildx bake -f docker-bake.hcl
+
+  test:e2e:
+    desc: Run the compose end-to-end test against freshly built images
+    deps: [build]
+    dir: e2e
+    cmds:
+      - mise exec -- go test -count=1 -tags integration -timeout 5m .
+
+  check:
+    desc: Format check, lint and unit tests for Go and Kotlin
+    cmds:
+      - task: check:go
+      - task: check:kotlin
+
+  check:go:
+    desc: Lint and unit-test the Go modules
+    cmds:
+      - mise exec -- golangci-lint run ./go/... ./e2e/...
+      - mise exec -- sh -c 'cd go && go tool templ generate'
+      - git diff --exit-code -- '*_templ.go'
+      - test -z "$(git ls-files -o --exclude-standard -- '*_templ.go')"
+      - mise exec -- go test ./go/...
+
+  check:kotlin:
+    desc: Run the Kotlin unit tests
+    dir: kotlin
+    cmds:
+      - mise exec -- ./gradlew --console=plain check
