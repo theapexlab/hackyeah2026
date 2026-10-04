@@ -3,6 +3,8 @@ import { Prng } from '../../src/prng';
 import { nearestPointOnSegment, pointInPolygon } from '../../src/terrain/geometry';
 import {
   buildStreetGraph,
+  centralJunctions,
+  distancesFrom,
   nearestPointOnGraph,
   randomPointInPolygon,
   randomPointOnStreets,
@@ -123,6 +125,29 @@ describe('graph queries', () => {
       [],
     );
     expect(shortestPath(split, 0, split.nodes.length - 1)).toEqual([]);
+  });
+
+  it('distancesFrom measures street distance to every node', () => {
+    const d = distancesFrom(g, nodeAt(g, 0, 0));
+    expect(d[nodeAt(g, 300, 300)]).toBeCloseTo(600);
+    expect(d[nodeAt(g, 100, 0)]).toBeCloseTo(100);
+  });
+
+  it('centralJunctions ranks hubs on major streets by closeness', () => {
+    const withMajor = buildStreetGraph(
+      lines.map((l, i) => (i === 2 ? street([...l.pts], true) : l)), // y = 100 is an avenue
+      [],
+    );
+    const hubs = centralJunctions(withMajor);
+    expect(hubs.every((h) => withMajor.nodes[h]!.y === 100)).toBe(true);
+    expect([100, 200]).toContain(withMajor.nodes[hubs[0]!]!.x);
+    expect(centralJunctions(withMajor)).toBe(hubs); // memoised
+    // without avenues: the inner junctions of the grid come first
+    const plain = centralJunctions(g);
+    const first = g.nodes[plain[0]!]!;
+    expect([100, 200]).toContain(first.x);
+    expect([100, 200]).toContain(first.y);
+    expect(centralJunctions(buildStreetGraph([], []))).toEqual([]);
   });
 
   it('randomPointOnStreets stays on a street, samples by length and skips bridges with land', () => {

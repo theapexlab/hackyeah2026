@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command } from '../../src/domain/commands';
+import { DEFAULT_ENGINE_CONFIG } from '../../src/domain/config';
 import { messageId, nodeId } from '../../src/domain/ids';
 import { createEngine, SimEngine } from '../../src/engine/engine';
 import { engineFrom, eventsOf, lastMessageId, mobile, router } from '../helpers';
@@ -118,51 +119,50 @@ describe('world commands', () => {
     expect(e.getSnapshot().nodes[0]!.mode).toBe('PEACE');
     e.step();
     expect(e.getSnapshot().nodes[0]!.mode).toBe('L1');
-    e.dispatch({ type: 'SetMobility', enabled: true, stepMetres: 9 });
+    e.dispatch({ type: 'SetMobility', enabled: true, speedKmh: { car: [30, 40] } });
+    const { shares, speedKmh } = DEFAULT_ENGINE_CONFIG.mobility;
     expect(e.config.mobility).toEqual({
       enabled: true,
-      stepMetres: 9,
-      carSpeedFactor: 20,
-      walkerFraction: 0.1,
-      driverFraction: 0.1,
+      shares,
+      speedKmh: { ...speedKmh, car: [30, 40] },
     });
-    e.dispatch({ type: 'SetMobility', enabled: false, walkerFraction: 0.3, carSpeedFactor: 15 });
+    e.dispatch({ type: 'SetMobility', enabled: false, shares: { foot: 0.3 } });
     expect(e.config.mobility).toEqual({
       enabled: false,
-      stepMetres: 9,
-      carSpeedFactor: 15,
-      walkerFraction: 0.3,
-      driverFraction: 0.1,
+      shares: { ...shares, foot: 0.3 },
+      speedKmh: { ...speedKmh, car: [30, 40] },
     });
+    e.dispatch({ type: 'SetConfig', patch: { tickSeconds: 1, mobility: { shares: { bike: 0 } } } });
+    expect(e.config.tickSeconds).toBe(1);
+    expect(e.config.mobility.shares).toEqual({ ...shares, foot: 0.3, bike: 0 });
     expect(e.getSnapshot().world.mobility).toBe(false);
   });
 
-  it('SetMobility sets the walkers and drivers moving inside the area, logging adjacency changes', () => {
+  it('SetMobility sets walkers, cyclists and drivers moving inside the area, logging adjacency changes', () => {
     const e = createEngine(
       // enough phones that someone is always free to take a place while others linger
       { seed: 7, width: 600, height: 400, mobiles: 80, routers: 2, gateways: 0 },
       {
-        mobility: {
-          enabled: false,
-          stepMetres: 4,
-          carSpeedFactor: 5,
-          walkerFraction: 0.125,
-          driverFraction: 0.125,
-        },
+        tickSeconds: 1,
+        mobility: { enabled: false, shares: { foot: 0.125, bike: 0.0625, car: 0.125 } },
       },
     );
     const pos = () => new Map(e.getSnapshot().nodes.map((n) => [n.id, [n.x, n.y]] as const));
-    const travelling = (mode: 'foot' | 'car') =>
-      e.getSnapshot().nodes.filter((n) => n.travel === mode).length;
+    const travelling = () => {
+      const nodes = e.getSnapshot().nodes;
+      return (['foot', 'bike', 'car'] as const).map(
+        (m) => nodes.filter((n) => n.travel === m).length,
+      );
+    };
     const before = pos();
-    expect([travelling('foot'), travelling('car')]).toEqual([10, 10]); // round(0.125 * 80) each
+    expect(travelling()).toEqual([10, 5, 10]); // round(share * 80)
     e.step(5);
     expect(pos()).toEqual(before);
     expect(eventsOf(e, 'ADJACENCY')).toHaveLength(1);
     e.dispatch({ type: 'SetMobility', enabled: true });
     for (let i = 0; i < 40; i++) {
       e.step();
-      expect([travelling('foot'), travelling('car')]).toEqual([10, 10]);
+      expect(travelling()).toEqual([10, 5, 10]);
     }
     const after = e.getSnapshot().nodes;
     const moved = after.filter((n) => {
@@ -170,7 +170,7 @@ describe('world commands', () => {
       return n.x !== x || n.y !== y;
     });
     expect(moved.every((n) => n.kind === 'mobile')).toBe(true);
-    expect(moved.length).toBeGreaterThanOrEqual(15);
+    expect(moved.length).toBeGreaterThanOrEqual(20);
     for (const n of after) {
       expect(n.x).toBeGreaterThanOrEqual(0);
       expect(n.x).toBeLessThanOrEqual(600);

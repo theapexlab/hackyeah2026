@@ -48,6 +48,7 @@ export interface NodeCounts {
   readonly unregistered: number;
   /** Phones on the move right now. */
   readonly walking: number;
+  readonly cycling: number;
   readonly driving: number;
 }
 
@@ -64,9 +65,11 @@ export function countNodes(nodes: readonly NodeView[]): NodeCounts {
   let backhaul = 0;
   let unregistered = 0;
   let walking = 0;
+  let cycling = 0;
   let driving = 0;
   for (const node of nodes) {
     if (node.travel === 'foot') walking += 1;
+    else if (node.travel === 'bike') cycling += 1;
     else if (node.travel === 'car') driving += 1;
     if (node.kind === 'mobile') mobiles += 1;
     else if (node.kind === 'router') routers += 1;
@@ -84,6 +87,7 @@ export function countNodes(nodes: readonly NodeView[]): NodeCounts {
     backhaul,
     unregistered,
     walking,
+    cycling,
     driving,
   };
   countsCache.set(nodes, counts);

@@ -1,7 +1,7 @@
-import type { EngineConfig, WorldConfig } from './config';
+import type { EngineConfigPatch, WorldConfig } from './config';
 import type { MessageId, NodeId } from './ids';
 import type { CheckInStatus, Circle, MessageClass, RequestPayload } from './message';
-import type { CredentialKind, DeclaredLevel, NodeKind } from './node';
+import type { CredentialKind, DeclaredLevel, NodeKind, TravelMode } from './node';
 
 /** Strategy for the "act upon requests" command. */
 export type AutoRespondStrategy = 'nearest-hops' | 'random';
@@ -16,12 +16,12 @@ export type Command =
   | {
       readonly type: 'SetMobility';
       readonly enabled: boolean;
-      readonly stepMetres?: number;
-      readonly carSpeedFactor?: number;
-      readonly walkerFraction?: number;
-      readonly driverFraction?: number;
+      /** Shares per mode, merged; changes apply from the next tick. */
+      readonly shares?: Partial<Record<TravelMode, number>>;
+      /** Speeds per mode in km/h, merged; new trips use them. */
+      readonly speedKmh?: Partial<Record<TravelMode, readonly [number, number]>>;
     }
-  | { readonly type: 'SetConfig'; readonly patch: Partial<EngineConfig> }
+  | { readonly type: 'SetConfig'; readonly patch: EngineConfigPatch }
   | {
       readonly type: 'SetRange';
       readonly kind?: NodeKind;

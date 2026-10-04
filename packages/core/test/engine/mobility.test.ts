@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_ENGINE_CONFIG,
-  DEFAULT_WORLD_CONFIG,
-  resolveEngineConfig,
-} from '../../src/domain/config';
+import type { EngineConfigPatch } from '../../src/domain/config';
+import { DEFAULT_WORLD_CONFIG, resolveEngineConfig } from '../../src/domain/config';
 import type { Node, TravelMode, WalkState } from '../../src/domain/node';
 import { applyCommand } from '../../src/engine/commands';
 import { createEngine } from '../../src/engine/engine';
-import { advanceWalker, travelTargets } from '../../src/engine/mobility';
+import { advanceWalker, secondsToTicks, travelTargets } from '../../src/engine/mobility';
 import type { EngineState } from '../../src/engine/state';
 import { createState } from '../../src/engine/state';
 import { refreshTopology, runTick } from '../../src/engine/tick';
@@ -21,10 +18,12 @@ import {
 } from '../../src/terrain/placement';
 import { engineFrom, mobile } from '../helpers';
 
+const MODES: readonly TravelMode[] = ['foot', 'bike', 'car'];
+
 const walk = (path: WalkState['path']): WalkState => ({
   mode: 'foot',
   phase: 'moving',
-  speedFactor: 1,
+  speed: 1,
   anchor: 0,
   path,
   cursor: 0,
@@ -67,27 +66,50 @@ describe('advanceWalker', () => {
   });
 });
 
-describe('travelTargets', () => {
+describe('travel shares and durations', () => {
   it('rounds the shares and never asks for more phones than there are', () => {
-    expect(travelTargets(200, { walkerFraction: 0.1, driverFraction: 0.1 })).toEqual({
+    expect(travelTargets(200, { foot: 0.1, bike: 0.05, car: 0.1 })).toEqual({
       foot: 20,
+      bike: 10,
       car: 20,
     });
-    expect(travelTargets(10, { walkerFraction: 0.8, driverFraction: 0.8 })).toEqual({
-      foot: 8,
-      car: 2,
+    expect(travelTargets(10, { foot: 0.6, bike: 0.3, car: 0.8 })).toEqual({
+      foot: 6,
+      bike: 3,
+      car: 1,
     });
-    expect(travelTargets(0, { walkerFraction: 0.1, driverFraction: 0.1 })).toEqual({
+    expect(travelTargets(0, { foot: 0.1, bike: 0.1, car: 0.1 })).toEqual({
       foot: 0,
+      bike: 0,
       car: 0,
     });
   });
+
+  it('turns simulated seconds into whole ticks', () => {
+    expect(secondsToTicks(30, 0.2)).toBe(150);
+    expect(secondsToTicks(30, 2)).toBe(15);
+    expect(secondsToTicks(0.01, 0.2)).toBe(1);
+  });
 });
 
-function krakowState(): EngineState {
+/** A fixed Kraków world for these tests, independent of the tunable defaults. */
+const WORLD = {
+  ...DEFAULT_WORLD_CONFIG,
+  mobiles: 200,
+  routers: 120,
+  gateways: 4,
+  range: { mobile: 100, router: 200, gateway: 220 },
+};
+const SHARES = { foot: 0.1, bike: 0.05, car: 0.1 };
+
+/** That world with traffic on at SHARES; `tickSeconds` 2 compresses long runs. */
+function krakowState(patch: EngineConfigPatch = {}): EngineState {
   const state = createState(
-    DEFAULT_WORLD_CONFIG,
-    resolveEngineConfig({ mobility: { ...DEFAULT_ENGINE_CONFIG.mobility, enabled: true } }),
+    WORLD,
+    resolveEngineConfig({
+      ...patch,
+      mobility: { enabled: true, shares: SHARES, ...patch.mobility },
+    }),
   );
   refreshTopology(state);
   return state;
@@ -95,19 +117,19 @@ function krakowState(): EngineState {
 
 const movingAs = (n: Node): TravelMode | null => (n.walk?.phase === 'moving' ? n.walk.mode : null);
 
-describe('walkers and drivers on the Kraków map', () => {
-  it('keeps a tenth walking and a tenth driving at every tick while the people change', () => {
-    const state = krakowState();
-    const target = Math.round(0.1 * DEFAULT_WORLD_CONFIG.mobiles);
-    const count = (mode: TravelMode) => state.nodes.filter((n) => movingAs(n) === mode).length;
-    expect([count('foot'), count('car')]).toEqual([target, target]);
+describe('walkers, cyclists and drivers on the Kraków map', () => {
+  it('keeps 10% walking, 5% cycling and 10% driving every tick while the people change', () => {
+    const state = krakowState({ tickSeconds: 2 });
+    const target = [20, 10, 20];
+    const count = () => MODES.map((m) => state.nodes.filter((n) => movingAs(n) === m).length);
+    expect(count()).toEqual(target);
     const travelled = new Set<string>();
     const modesOf = new Map<string, Set<TravelMode>>();
     let lingering = 0;
     let stayed = 0;
-    for (let tick = 0; tick < 800; tick++) {
+    for (let tick = 0; tick < 3000; tick++) {
       runTick(state);
-      expect([count('foot'), count('car')], `tick ${state.tick}`).toEqual([target, target]);
+      expect(count(), `tick ${state.tick}`).toEqual(target);
       for (const n of state.nodes) {
         const mode = movingAs(n);
         if (mode !== null) {
@@ -122,15 +144,16 @@ describe('walkers and drivers on the Kraków map', () => {
     expect(state.nodes.filter((n) => n.kind !== 'mobile').every((n) => n.walk === null)).toBe(true);
     expect(lingering).toBeGreaterThan(0); // people stop where they arrive
     expect(stayed).toBeGreaterThan(0); // some stay put for good
-    expect(travelled.size).toBeGreaterThan(2 * target); // and others set off instead
-    const switched = [...modesOf.values()].filter((m) => m.size === 2).length;
-    expect(switched).toBeGreaterThan(0); // somebody walked and later drove, or the reverse
+    expect(travelled.size).toBeGreaterThan(50); // and others set off instead
+    const switched = [...modesOf.values()].filter((m) => m.size >= 2).length;
+    expect(switched).toBeGreaterThan(0); // somebody changed how they travel
   });
 
-  it('drives 20 times as fast as it walks, on streets or in parks, never in the river', () => {
-    const state = krakowState();
-    const step = state.config.mobility.stepMetres;
-    const speed: Record<TravelMode, number[]> = { foot: [], car: [] };
+  it('moves at real speeds (2-3, 10 and 50 km/h), on streets or in parks, never in the river', () => {
+    const tickSeconds = 2;
+    const state = krakowState({ tickSeconds });
+    const perTick = (kmh: number) => (kmh / 3.6) * tickSeconds;
+    const steps: Record<TravelMode, number[]> = { foot: [], bike: [], car: [] };
     let parkVisits = 0;
     for (let tick = 0; tick < 600; tick++) {
       const before = new Map(state.nodes.map((n) => [n.id, [n.x, n.y, movingAs(n)] as const]));
@@ -145,18 +168,23 @@ describe('walkers and drivers on the Kraków map', () => {
         const nearPark = distanceToParks(state.terrain, n) <= 21;
         expect(onStreet || inAPark || nearPark, `${n.id} at tick ${state.tick}`).toBe(true);
         expect(isPlaceable(state.terrain, n), `${n.id} in the river`).toBe(true);
-        if (!onStreet && inAPark) parkVisits++;
-        if (mode !== null && movingAs(n) === mode) speed[mode].push(d);
+        if (!onStreet && inAPark) {
+          parkVisits++;
+          expect(mode).toBe('foot'); // only walkers go into parks
+        }
+        if (mode !== null && movingAs(n) === mode) steps[mode].push(d);
       }
     }
-    const max = (xs: number[]) => Math.max(...xs);
-    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    expect(max(speed.foot)).toBeLessThanOrEqual(step * 1.3 + 1e-9);
-    expect(max(speed.car)).toBeLessThanOrEqual(step * 20 * 1.3 + 1e-9);
-    const ratio = mean(speed.car) / mean(speed.foot);
-    expect(ratio).toBeGreaterThan(12);
-    expect(ratio).toBeLessThan(28);
-    expect(parkVisits).toBeGreaterThan(0); // walkers step into parks, cars never do
+    const eps = 1e-9;
+    // a full tick of travel is exactly the trip speed; arrivals and turns cut it short
+    expect(Math.max(...steps.foot)).toBeLessThanOrEqual(perTick(3) + eps);
+    expect(Math.max(...steps.bike)).toBeLessThanOrEqual(perTick(10) + eps);
+    expect(Math.max(...steps.car)).toBeLessThanOrEqual(perTick(50) + eps);
+    expect(Math.max(...steps.foot)).toBeGreaterThan(perTick(2) - eps);
+    const typical = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length * 0.75)]!;
+    expect(typical(steps.bike)).toBeCloseTo(perTick(10), 6);
+    expect(typical(steps.car)).toBeCloseTo(perTick(50), 6);
+    expect(parkVisits).toBeGreaterThan(0);
   });
 
   it('is deterministic', () => {
@@ -172,7 +200,7 @@ describe('walkers and drivers on the Kraków map', () => {
   });
 
   it('MoveNode keeps nodes out of the Vistula (routers out of parks too) and restarts a traveller', () => {
-    const state = krakowState();
+    const state = krakowState({ tickSeconds: 2 });
     const river = { x: 700 * 1.1, y: 1040 * (1300 / 1235) };
     const park = { x: 520 * 1.1, y: 470 * (1300 / 1235) }; // a park off the streets
     expect(inWater(state.terrain, river)).toBe(true);
@@ -195,22 +223,20 @@ describe('walkers and drivers on the Kraków map', () => {
     expect(walker.walk).toMatchObject({ path: [], cursor: 0, dwellUntilTick: 0 });
     const anchor = state.terrain.graph.nodes[walker.walk!.anchor]!;
     const distance = Math.hypot(anchor.x - park.x, anchor.y - park.y);
-    const ticks = Math.ceil(distance / (state.config.mobility.stepMetres * 0.7)) + 2;
+    const ticks = Math.ceil(distance / (walker.walk!.speed * state.config.tickSeconds)) + 2;
     for (let i = 0; i < ticks; i++) runTick(state);
     expect(distanceToStreets(state.terrain, walker)).toBeLessThanOrEqual(STREET_TOLERANCE_M);
   });
 
   it('applies new shares on the next tick, and never moves explicit node lists', () => {
-    const e = createEngine(DEFAULT_WORLD_CONFIG);
+    const e = createEngine(WORLD, { mobility: { shares: SHARES } });
     const moving = (mode: TravelMode) => e.getSnapshot().nodes.filter((n) => n.travel === mode);
-    expect(moving('foot')).toHaveLength(20);
-    expect(moving('car')).toHaveLength(20);
-    e.dispatch({ type: 'SetMobility', enabled: true, walkerFraction: 0.3 });
+    expect(MODES.map((m) => moving(m).length)).toEqual([20, 10, 20]);
+    e.dispatch({ type: 'SetMobility', enabled: true, shares: { foot: 0.3 } });
     e.step();
-    expect(moving('foot')).toHaveLength(60);
-    expect(moving('car')).toHaveLength(20);
+    expect(MODES.map((m) => moving(m).length)).toEqual([60, 10, 20]);
     const hand = engineFrom([mobile('m-001', 0, 0), mobile('m-002', 50, 0)], {
-      mobility: { ...DEFAULT_ENGINE_CONFIG.mobility, enabled: true, walkerFraction: 1 },
+      mobility: { enabled: true, shares: { foot: 1 } },
     });
     hand.step(10);
     expect(hand.getSnapshot().nodes.map((n) => [n.travel, n.x, n.y])).toEqual([

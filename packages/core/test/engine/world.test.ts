@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { WorldConfig } from '../../src/domain/config';
 import { DEFAULT_WORLD_CONFIG } from '../../src/domain/config';
-import { generateWorld } from '../../src/engine/world';
+import { formatNodeId } from '../../src/domain/ids';
+import { GATEWAY_SPACING_M, gatewaySpots, generateWorld } from '../../src/engine/world';
 import { Prng } from '../../src/prng';
+import { centralJunctions } from '../../src/terrain/graph';
 import { resolveTerrain } from '../../src/terrain/index';
 import { KRAKOW_HEIGHT, KRAKOW_WIDTH } from '../../src/terrain/krakow';
 import {
@@ -20,8 +22,6 @@ function onTerrain(config: WorldConfig) {
   return { terrain, config: { ...config, width: terrain.width, height: terrain.height } };
 }
 
-const pad = (n: number, w: number) => String(n).padStart(w, '0');
-
 describe('generateWorld on the Kraków map (seed 42)', () => {
   const { terrain, config } = onTerrain(DEFAULT_WORLD_CONFIG);
   const nodes = generateWorld(config, new Prng(42), terrain);
@@ -32,12 +32,13 @@ describe('generateWorld on the Kraków map (seed 42)', () => {
     expect(config.height).toBe(KRAKOW_HEIGHT);
     expect(nodes).toHaveLength(counts.mobiles + counts.routers + counts.gateways);
     const ids = nodes.map((n) => n.id);
-    expect(ids).toEqual([...ids].sort());
+    const expected = [
+      ...Array.from({ length: counts.gateways }, (_, i) => formatNodeId('gateway', i + 1)),
+      ...Array.from({ length: counts.mobiles }, (_, i) => formatNodeId('mobile', i + 1)),
+      ...Array.from({ length: counts.routers }, (_, i) => formatNodeId('router', i + 1)),
+    ].sort();
+    expect(ids).toEqual(expected);
     expect(ids[0]).toBe('g-01');
-    expect(ids[counts.gateways - 1]).toBe(`g-${pad(counts.gateways, 2)}`);
-    expect(ids[counts.gateways]).toBe('m-001');
-    expect(ids[counts.gateways + counts.mobiles]).toBe('r-001');
-    expect(ids.at(-1)).toBe(`r-${pad(counts.routers, 3)}`);
   });
 
   it('keeps every node out of the Vistula: phones and gateways on streets, routers anywhere but parks', () => {
@@ -92,17 +93,26 @@ describe('generateWorld on the Kraków map (seed 42)', () => {
     expect(battery).toHaveLength(Math.round(0.1 * counts.routers));
   });
 
-  it('keeps gateways near the inset corners (snapped onto the nearest street)', () => {
-    const anchors = [
-      [0.12, 0.12],
-      [0.88, 0.88],
-      [0.88, 0.12],
-      [0.12, 0.88],
-    ] as const;
-    anchors.forEach(([fx, fy], i) => {
-      const g = nodes.find((n) => n.id === `g-${pad(i + 1, 2)}`)!;
-      expect(Math.hypot(g.x - fx * KRAKOW_WIDTH, g.y - fy * KRAKOW_HEIGHT)).toBeLessThan(150);
-    });
+  it('puts the gateways on the most central street hubs, spread apart', () => {
+    const hubs = centralJunctions(terrain.graph);
+    const gateways = nodes.filter((n) => n.kind === 'gateway');
+    expect(gateways).toHaveLength(counts.gateways);
+    const top = terrain.graph.nodes[hubs[0]!]!;
+    expect([gateways[0]!.x, gateways[0]!.y]).toEqual([top.x, top.y]); // g-01: the central hub
+    // the central hub lies well inside the map (Krakowska, Kazimierz)
+    expect(Math.hypot(top.x - KRAKOW_WIDTH / 2, top.y - KRAKOW_HEIGHT / 2)).toBeLessThan(400);
+    for (const g of gateways) {
+      const hub = hubs.find((h) => {
+        const p = terrain.graph.nodes[h]!;
+        return p.x === g.x && p.y === g.y;
+      });
+      expect(hub, g.id).toBeDefined();
+      expect(terrain.graph.adjacency[hub!]!.length).toBeGreaterThanOrEqual(3);
+      for (const other of gateways) {
+        if (other === g) continue;
+        expect(Math.hypot(g.x - other.x, g.y - other.y)).toBeGreaterThanOrEqual(GATEWAY_SPACING_M);
+      }
+    }
   });
 
   it('is deterministic per seed and differs across seeds', () => {
@@ -144,6 +154,16 @@ describe('generateWorld on a procedural map (any other seed)', () => {
       expect(n.y).toBeGreaterThanOrEqual(0);
       expect(n.y).toBeLessThanOrEqual(700);
     }
+  });
+
+  it('places gateways on hubs there too, and falls back to the old anchors without streets', () => {
+    expect(gatewaySpots(terrain, 2)).toEqual(
+      nodes.filter((n) => n.kind === 'gateway').map((n) => ({ x: n.x, y: n.y })),
+    );
+    const bare = onTerrain({ ...DEFAULT_WORLD_CONFIG, seed: 7, width: 40, height: 40 });
+    expect(bare.terrain.graph.edges).toHaveLength(0);
+    const g = generateWorld({ ...bare.config, mobiles: 0, routers: 0, gateways: 1 }, new Prng(7));
+    expect([g[0]!.x, g[0]!.y]).toEqual([0.12 * 40, 0.12 * 40]);
   });
 
   it('defaults the terrain from the config', () => {

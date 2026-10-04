@@ -1,5 +1,5 @@
 import type { Command } from '../domain/commands';
-import type { EngineConfig, WorldConfig } from '../domain/config';
+import type { EngineConfig, EngineConfigPatch, WorldConfig } from '../domain/config';
 import { resolveEngineConfig, resolveWorldConfig } from '../domain/config';
 import type { SimEvent, TransitEvent } from '../domain/events';
 import type { NodeId } from '../domain/ids';
@@ -29,7 +29,7 @@ export class SimEngine {
    * `nodes` is an internal escape hatch (see createEngineFromNodes): an explicit node
    * list replaces generateWorld. The engine takes ownership of those objects.
    */
-  constructor(world: Partial<WorldConfig>, cfg?: Partial<EngineConfig>, nodes?: readonly Node[]) {
+  constructor(world: Partial<WorldConfig>, cfg?: EngineConfigPatch, nodes?: readonly Node[]) {
     this.startWorld = resolveWorldConfig(world);
     this.startConfig = resolveEngineConfig(cfg);
     this.state = createState(this.startWorld, this.startConfig, nodes);
@@ -45,7 +45,7 @@ export class SimEngine {
     world: Partial<WorldConfig>,
     commandLog: readonly CommandLogEntry[],
     untilTick: number,
-    cfg?: Partial<EngineConfig>,
+    cfg?: EngineConfigPatch,
   ): SimEngine {
     const engine = new SimEngine(world, cfg);
     for (const entry of commandLog) {
@@ -151,7 +151,7 @@ export class SimEngine {
 }
 
 /** Convenience factory. */
-export function createEngine(world: Partial<WorldConfig>, cfg?: Partial<EngineConfig>): SimEngine {
+export function createEngine(world: Partial<WorldConfig>, cfg?: EngineConfigPatch): SimEngine {
   return new SimEngine(world, cfg);
 }
 
@@ -165,7 +165,7 @@ export function createEngine(world: Partial<WorldConfig>, cfg?: Partial<EngineCo
  */
 export function createEngineFromNodes(
   nodes: readonly Node[],
-  cfg?: Partial<EngineConfig>,
+  cfg?: EngineConfigPatch,
   world?: Partial<WorldConfig>,
 ): SimEngine {
   return new SimEngine(world ?? {}, cfg, nodes);

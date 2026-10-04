@@ -2,6 +2,7 @@
 import type { NodeKind, TravelMode } from '@pomoc/core';
 import {
   type Icon,
+  IconBike,
   IconCar,
   IconDeviceMobile,
   IconRouter,
@@ -19,6 +20,7 @@ export const KIND_ICON: Readonly<Record<NodeKind, Icon>> = {
 /** A phone on the move shows how its owner travels instead of the phone icon. */
 export const TRAVEL_ICON: Readonly<Record<TravelMode, Icon>> = {
   foot: IconWalk,
+  bike: IconBike,
   car: IconCar,
 };
 

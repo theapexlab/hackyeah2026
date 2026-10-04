@@ -42,12 +42,22 @@ function handleDoubleClick(event: MouseEvent<SVGGElement>, id: NodeId): void {
   useUiStore.getState().requestFocus(id);
 }
 
-/** One clickable node. Props are primitives so memo() skips it unless its own state changed. */
-export const NodeGlyph = memo(function NodeGlyph({
+/**
+ * One clickable node. Props are primitives so memo() skips it unless its own state changed.
+ * Only this thin wrapper re-renders when a node moves: the body (tooltip, icon, badges) is
+ * memoised on everything but the position, so hundreds of travellers stay cheap per tick.
+ */
+export const NodeGlyph = memo(function NodeGlyph({ x, y, ...body }: NodeGlyphProps) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <NodeBody {...body} />
+    </g>
+  );
+});
+
+const NodeBody = memo(function NodeBody({
   id,
   kind,
-  x,
-  y,
   mode,
   alive,
   hasBackhaul,
@@ -57,12 +67,12 @@ export const NodeGlyph = memo(function NodeGlyph({
   openRequests,
   selected,
   hovered,
-}: NodeGlyphProps) {
+}: Omit<NodeGlyphProps, 'x' | 'y'>) {
   const r = RADIUS[kind];
   const iconSize = Math.round(r * 1.25);
   const Icon = travel === null ? KIND_ICON[kind] : TRAVEL_ICON[travel];
   const ring = modeColorVar(mode);
-  const transform = `translate(${x} ${y})${hovered ? ' scale(1.15)' : ''}`;
+
   const label = [
     id,
     formatKind(kind),
@@ -79,7 +89,7 @@ export const NodeGlyph = memo(function NodeGlyph({
     <Tooltip label={label} openDelay={250} withinPortal>
       <g
         data-node={id}
-        transform={transform}
+        transform={hovered ? 'scale(1.15)' : undefined}
         className="pomoc-node"
         style={{ opacity: alive ? 1 : 0.35 }}
         onClick={(event) => handleClick(event, id)}

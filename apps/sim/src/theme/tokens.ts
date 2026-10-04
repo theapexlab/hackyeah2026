@@ -20,6 +20,7 @@ export type MantineColorName =
   | 'gray'
   | 'green'
   | 'pink'
+  | 'indigo'
   | 'dark';
 
 export type ColorScheme = 'light' | 'dark';
@@ -27,13 +28,18 @@ export type ColorScheme = 'light' | 'dark';
 /** Marker colour of a phone on the move. */
 export const TRAVEL_COLOR: Readonly<Record<TravelMode, MantineColorName>> = {
   foot: 'cyan',
+  bike: 'indigo',
   car: 'pink',
 };
 
 export const TRAVEL_LABEL: Readonly<Record<TravelMode, string>> = {
   foot: 'walking',
+  bike: 'cycling',
   car: 'driving',
 };
+
+/** Legend and HUD order. */
+export const TRAVEL_MODES: readonly TravelMode[] = ['foot', 'bike', 'car'];
 
 /** Ambient colours: banner, node rings, region tints, vignette. */
 export const MODE_COLOR: Readonly<Record<Mode, MantineColorName>> = {

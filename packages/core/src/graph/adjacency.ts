@@ -14,42 +14,88 @@ export interface Adjacency {
   readonly edges: EdgeView[];
 }
 
+/** Grid cell key; exact while |cell coordinates| < 2^20. */
+const cellKey = (cx: number, cy: number): number => (cx + 1048576) * 2097152 + (cy + 1048576);
+
 /**
  * Build the proximity graph. Two nodes are adjacent iff BOTH are alive and their
  * distance is at most min(rangeA, rangeB); the quality bucket is measured against
  * that smaller range.
  *
  * PRECONDITION: `nodes` is sorted ascending by id (the engine keeps `state.nodes`
- * sorted; ids are zero-padded so lexical order is creation order). The sorted-output
- * guarantees above rely on it: the i<j double loop then emits edges and neighbour
- * lists already in order, with no extra sort. O(n^2); fine up to a few thousand nodes.
+ * sorted). The output is exactly that of an i<j double loop over this array: edges in
+ * (i, j) order and neighbour lists in index order, with no further sort.
+ *
+ * Alive nodes are bucketed in square cells as wide as the median alive range; each node
+ * looks only at the cells within its own range (an adjacent pair is closer than the
+ * smaller range, so the lower-index node always finds the other). The pairs found are
+ * sorted once by (i, j) to keep the double-loop order. Close to linear for spread-out
+ * worlds instead of O(n^2).
  *
  * Pure: it does not write `node.neighbourIds`; the engine copies the lists it needs.
  */
 export function buildAdjacency(nodes: readonly Node[]): Adjacency {
+  const n = nodes.length;
   const neighbours = new Map<NodeId, NodeId[]>();
-  const edges: EdgeView[] = [];
-  for (const node of nodes) neighbours.set(node.id, []);
+  const lists: NodeId[][] = new Array(n);
+  const ranges: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const node = nodes[i]!;
+    const list: NodeId[] = [];
+    neighbours.set(node.id, list);
+    lists[i] = list;
+    if (node.alive) ranges.push(node.range);
+  }
+  ranges.sort((p, q) => p - q);
+  const cell = Math.max(1, ranges[ranges.length >> 1] ?? 1);
 
-  for (let i = 0; i < nodes.length; i++) {
-    const a = nodes[i];
-    if (a === undefined || !a.alive) continue;
-    const listA = neighbours.get(a.id);
-    if (listA === undefined) continue;
-    for (let j = i + 1; j < nodes.length; j++) {
-      const b = nodes[j];
-      if (b === undefined || !b.alive) continue;
-      const range = Math.min(a.range, b.range);
-      const d2 = dist2(a.x, a.y, b.x, b.y);
-      if (d2 > range * range) continue;
-      const listB = neighbours.get(b.id);
-      if (listB === undefined) continue;
-      listA.push(b.id);
-      listB.push(a.id);
-      const quality = qualityBucket(Math.sqrt(d2), range);
-      if (a.id < b.id) edges.push({ a: a.id, b: b.id, quality });
-      else edges.push({ a: b.id, b: a.id, quality });
+  const grid = new Map<number, number[]>();
+  const cx = new Int32Array(n);
+  const cy = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const node = nodes[i]!;
+    if (!node.alive) continue;
+    cx[i] = Math.floor(node.x / cell);
+    cy[i] = Math.floor(node.y / cell);
+    const key = cellKey(cx[i]!, cy[i]!);
+    const bucket = grid.get(key);
+    if (bucket === undefined) grid.set(key, [i]);
+    else bucket.push(i);
+  }
+
+  // Pairs as i * n + j (i < j), so one numeric sort restores the double-loop order.
+  const pairs: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = nodes[i]!;
+    if (!a.alive) continue;
+    const reach = Math.max(1, Math.ceil(a.range / cell));
+    for (let dx = -reach; dx <= reach; dx++) {
+      for (let dy = -reach; dy <= reach; dy++) {
+        const bucket = grid.get(cellKey(cx[i]! + dx, cy[i]! + dy));
+        if (bucket === undefined) continue;
+        for (const j of bucket) {
+          if (j <= i) continue;
+          const b = nodes[j]!;
+          const range = Math.min(a.range, b.range);
+          if (dist2(a.x, a.y, b.x, b.y) <= range * range) pairs.push(i * n + j);
+        }
+      }
     }
+  }
+  pairs.sort((p, q) => p - q);
+
+  const edges: EdgeView[] = [];
+  for (const pair of pairs) {
+    const i = Math.floor(pair / n);
+    const j = pair - i * n;
+    const a = nodes[i]!;
+    const b = nodes[j]!;
+    const range = Math.min(a.range, b.range);
+    lists[i]!.push(b.id);
+    lists[j]!.push(a.id);
+    const quality = qualityBucket(Math.sqrt(dist2(a.x, a.y, b.x, b.y)), range);
+    if (a.id < b.id) edges.push({ a: a.id, b: b.id, quality });
+    else edges.push({ a: b.id, b: a.id, quality });
   }
   return { neighbours, edges };
 }

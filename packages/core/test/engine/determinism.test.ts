@@ -11,7 +11,7 @@ import { TRANSIT_RING_SIZE } from '../../src/engine/state';
  * L2/L3, all-clear step-down), with store-and-forward islands while the grid is down.
  */
 const script: readonly { tick: number; command: Command }[] = [
-  { tick: 0, command: { type: 'SetMobility', enabled: true, stepMetres: 6 } },
+  { tick: 0, command: { type: 'SetMobility', enabled: true } },
   { tick: 2, command: { type: 'SendRandomRequest' } },
   { tick: 3, command: { type: 'SetCellsUp', up: false } },
   { tick: 6, command: { type: 'SendRandomRequest' } },

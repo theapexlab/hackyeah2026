@@ -1,6 +1,6 @@
 import type { Command } from '../domain/commands';
-import type { EngineConfig } from '../domain/config';
-import { resolveWorldConfig } from '../domain/config';
+import type { EngineConfigPatch } from '../domain/config';
+import { patchEngineConfig, resolveWorldConfig } from '../domain/config';
 import type { DropReason } from '../domain/events';
 import type { MessageId, NodeId } from '../domain/ids';
 import type { Message, MessageClass, Payload, RequestPayload } from '../domain/message';
@@ -158,12 +158,8 @@ export const REQUEST_CATEGORY: Readonly<Record<MessageClass, string>> = {
   PORTAL_SUMMARY: 'portal',
 };
 
-function patchConfig(state: EngineState, patch: Partial<EngineConfig>): void {
-  state.config = {
-    ...state.config,
-    ...patch,
-    mobility: { ...state.config.mobility, ...(patch.mobility ?? {}) },
-  };
+function patchConfig(state: EngineState, patch: EngineConfigPatch): void {
+  state.config = patchEngineConfig(state.config, patch);
 }
 
 function sendRandomRequest(state: EngineState, from: NodeId | undefined): void {
@@ -290,10 +286,8 @@ export function applyCommand(state: EngineState, input: Command): void {
       patchConfig(state, {
         mobility: {
           enabled: cmd.enabled,
-          stepMetres: cmd.stepMetres ?? cfg.mobility.stepMetres,
-          carSpeedFactor: cmd.carSpeedFactor ?? cfg.mobility.carSpeedFactor,
-          walkerFraction: cmd.walkerFraction ?? cfg.mobility.walkerFraction,
-          driverFraction: cmd.driverFraction ?? cfg.mobility.driverFraction,
+          ...(cmd.shares === undefined ? {} : { shares: cmd.shares }),
+          ...(cmd.speedKmh === undefined ? {} : { speedKmh: cmd.speedKmh }),
         },
       });
       return;

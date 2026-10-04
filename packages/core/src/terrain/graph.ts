@@ -291,15 +291,15 @@ export function randomPointOnStreets(
 }
 
 /**
- * Shortest route by street length as node indices from `from` to `to` inclusive: [from]
- * when they are equal, [] when unreachable. Dijkstra with a binary heap; ties go to the
- * lower node index, so routes are deterministic.
+ * Dijkstra by street length from `from`, stopping early once `to` is settled (-1: settle
+ * everything). Binary heap; ties go to the lower node index, so results are deterministic.
  */
-export function shortestPath(graph: StreetGraph, from: number, to: number): number[] {
+function dijkstra(
+  graph: StreetGraph,
+  from: number,
+  to = -1,
+): { readonly dist: Float64Array; readonly prev: Int32Array; readonly done: Uint8Array } {
   const n = graph.nodes.length;
-  if (from < 0 || to < 0 || from >= n || to >= n) return [];
-  if (from === to) return [from];
-  if (graph.componentOf[from] !== graph.componentOf[to]) return [];
   const dist = new Float64Array(n).fill(Number.POSITIVE_INFINITY);
   const prev = new Int32Array(n).fill(-1);
   const done = new Uint8Array(n);
@@ -347,6 +347,7 @@ export function shortestPath(graph: StreetGraph, from: number, to: number): numb
     }
     return top;
   };
+  if (from < 0 || from >= n) return { dist, prev, done };
   dist[from] = 0;
   push(0, from);
   while (heapD.length > 0) {
@@ -365,10 +366,76 @@ export function shortestPath(graph: StreetGraph, from: number, to: number): numb
       }
     }
   }
+  return { dist, prev, done };
+}
+
+/**
+ * Shortest route by street length as node indices from `from` to `to` inclusive: [from]
+ * when they are equal, [] when unreachable. Ties go to the lower node index, so routes are
+ * deterministic.
+ */
+export function shortestPath(graph: StreetGraph, from: number, to: number): number[] {
+  const n = graph.nodes.length;
+  if (from < 0 || to < 0 || from >= n || to >= n) return [];
+  if (from === to) return [from];
+  if (graph.componentOf[from] !== graph.componentOf[to]) return [];
+  const { prev, done } = dijkstra(graph, from, to);
   if (!done[to]) return [];
   const path: number[] = [];
   for (let v = to; v !== -1; v = prev[v]!) path.push(v);
   return path.reverse();
+}
+
+/** Street distance from `from` to every node (Infinity where unreachable). */
+export function distancesFrom(graph: StreetGraph, from: number): Float64Array {
+  return dijkstra(graph, from).dist;
+}
+
+const centralCache = new WeakMap<StreetGraph, readonly number[]>();
+
+/**
+ * The network's hubs, most central first: junctions (three or more streets) on a major,
+ * non-bridge street in the largest component, ranked by closeness (smallest total street
+ * distance to every node of that component; ties by index). Falls back to any junction,
+ * then to any node, of that component. Memoised per graph.
+ */
+export function centralJunctions(graph: StreetGraph): readonly number[] {
+  const cached = centralCache.get(graph);
+  if (cached !== undefined) return cached;
+  const sizes = new Map<number, number>();
+  for (let i = 0; i < graph.nodes.length; i++) {
+    if (graph.inWater[i]) continue;
+    const c = graph.componentOf[i]!;
+    sizes.set(c, (sizes.get(c) ?? 0) + 1);
+  }
+  let main = -1;
+  let mainSize = 0;
+  for (const [c, size] of sizes) {
+    if (size > mainSize || (size === mainSize && c < main)) {
+      main = c;
+      mainSize = size;
+    }
+  }
+  const inMain: number[] = [];
+  for (let i = 0; i < graph.nodes.length; i++) {
+    if (!graph.inWater[i] && graph.componentOf[i] === main) inMain.push(i);
+  }
+  const junction = (i: number): boolean => graph.adjacency[i]!.length >= 3;
+  const onMajor = (i: number): boolean =>
+    graph.adjacency[i]!.some((ei) => graph.edges[ei]!.major && !graph.edges[ei]!.bridge);
+  let candidates = inMain.filter((i) => junction(i) && onMajor(i));
+  if (candidates.length === 0) candidates = inMain.filter(junction);
+  if (candidates.length === 0) candidates = inMain;
+  const score = new Map<number, number>();
+  for (const c of candidates) {
+    const dist = distancesFrom(graph, c);
+    let total = 0;
+    for (const i of inMain) total += dist[i]!;
+    score.set(c, total);
+  }
+  const ranked = [...candidates].sort((a, b) => score.get(a)! - score.get(b)! || a - b);
+  centralCache.set(graph, ranked);
+  return ranked;
 }
 
 /**

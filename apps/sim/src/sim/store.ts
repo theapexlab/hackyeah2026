@@ -8,10 +8,11 @@ import {
 } from '@pomoc/core';
 import { create } from 'zustand';
 
-export const DEFAULT_TICK_MS = 250;
+/** A tick is 200 ms of simulated time, and at 1x it also takes 200 ms: real time. */
+export const DEFAULT_TICK_MS = 200;
 
 export interface WorldOptions {
-  /** Wall-clock milliseconds per tick at speed 1. */
+  /** Milliseconds per tick: simulated time per tick, and wall time per tick at 1x. */
   readonly tickMs: number;
   /** Street traffic: a share of the phones walk and a share drive. */
   readonly mobility: boolean;
@@ -55,8 +56,9 @@ function attach(engine: SimEngine): void {
   });
 }
 
-/** Engine config of the first world: as core's defaults, with the street traffic on. */
+/** Engine config of the first world: core's defaults, 200 ms ticks, street traffic on. */
 export const INITIAL_ENGINE_CONFIG = {
+  tickSeconds: DEFAULT_TICK_MS / 1000,
   mobility: { ...DEFAULT_ENGINE_CONFIG.mobility, enabled: true },
 } as const;
 
@@ -85,6 +87,8 @@ export function createWorld(config: WorldConfig, options?: Partial<WorldOptions>
   const mobility = options?.mobility ?? base.mobility.enabled;
   const engine = createEngine(config, {
     ...base,
+    // simulated time per tick follows the tick length, so 1x stays real time
+    tickSeconds: tickIntervalMs / 1000,
     mobility: { ...base.mobility, enabled: mobility },
   });
   attach(engine);

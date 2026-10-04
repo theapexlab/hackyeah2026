@@ -1,9 +1,54 @@
 import { describe, expect, it } from 'vitest';
 import { nodeId } from '../../src/domain/ids';
+import type { Node } from '../../src/domain/node';
+import type { EdgeView } from '../../src/domain/snapshot';
 import { buildAdjacency, edgesEqual } from '../../src/graph/adjacency';
+import { dist2, qualityBucket } from '../../src/graph/distance';
+import { Prng } from '../../src/prng';
 import { lineNodes, makeNode } from '../helpers';
 
+/** The plain O(n^2) double loop the grid version must reproduce exactly. */
+function bruteForce(nodes: readonly Node[]) {
+  const neighbours = new Map(nodes.map((n) => [n.id, [] as string[]] as const));
+  const edges: EdgeView[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i]!;
+    if (!a.alive) continue;
+    for (let j = i + 1; j < nodes.length; j++) {
+      const b = nodes[j]!;
+      if (!b.alive) continue;
+      const range = Math.min(a.range, b.range);
+      const d2 = dist2(a.x, a.y, b.x, b.y);
+      if (d2 > range * range) continue;
+      neighbours.get(a.id)!.push(b.id);
+      neighbours.get(b.id)!.push(a.id);
+      edges.push({ a: a.id, b: b.id, quality: qualityBucket(Math.sqrt(d2), range) });
+    }
+  }
+  return { neighbours, edges };
+}
+
 describe('buildAdjacency', () => {
+  it('matches the plain double loop exactly on random worlds (grid shortcut)', () => {
+    const prng = new Prng(11);
+    for (let round = 0; round < 20; round++) {
+      const n = 50 + prng.int(250);
+      const nodes = Array.from({ length: n }, (_, i) =>
+        makeNode({
+          id: `m-${String(i + 1).padStart(4, '0')}`,
+          x: prng.float(-50, 1500),
+          y: prng.float(-50, 900),
+          range: [0, 30, 60, 120, 250][prng.int(5)]!,
+          alive: prng.next() > 0.1,
+        }),
+      );
+      const got = buildAdjacency(nodes);
+      const want = bruteForce(nodes);
+      expect(got.edges).toEqual(want.edges);
+      expect([...got.neighbours]).toEqual([...want.neighbours]);
+    }
+  });
+
   it('makes an edge iff distance <= min(rangeA, rangeB), boundary inclusive', () => {
     const nodes = [
       makeNode({ id: 'm-001', x: 0, y: 0, range: 60 }),

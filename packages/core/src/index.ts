@@ -1,10 +1,19 @@
 // @pomoc/core public surface. Pure TypeScript; nothing here touches React or the DOM.
 
 export type { AutoRespondStrategy, Command, CommandType } from './domain/commands';
-export type { EngineConfig, MobilityConfig, RangeConfig, WorldConfig } from './domain/config';
+export type {
+  EngineConfig,
+  EngineConfigPatch,
+  MobilityConfig,
+  MobilityPatch,
+  RangeConfig,
+  WorldConfig,
+} from './domain/config';
 export {
   DEFAULT_ENGINE_CONFIG,
   DEFAULT_WORLD_CONFIG,
+  mergeMobility,
+  patchEngineConfig,
   resolveEngineConfig,
   resolveWorldConfig,
 } from './domain/config';
@@ -100,6 +109,7 @@ export {
   PARK_CHANCE,
   resetTrip,
   STAY_CHANCE,
+  secondsToTicks,
   TRIP_BAND_M,
   travelTargets,
 } from './engine/mobility';
@@ -148,7 +158,14 @@ export {
   requestExpired,
 } from './engine/transactions';
 export type { NodeInit } from './engine/world';
-export { compareNodeId, createNode, generateWorld, sortNodes } from './engine/world';
+export {
+  compareNodeId,
+  createNode,
+  GATEWAY_SPACING_M,
+  gatewaySpots,
+  generateWorld,
+  sortNodes,
+} from './engine/world';
 export type { Adjacency } from './graph/adjacency';
 export { buildAdjacency, edgesEqual } from './graph/adjacency';
 export { boundedBfs } from './graph/bfs';
@@ -191,7 +208,9 @@ export {
 export type { GraphProjection } from './terrain/graph';
 export {
   buildStreetGraph,
+  centralJunctions,
   DEFAULT_SNAP_M,
+  distancesFrom,
   nearestPointOnGraph,
   randomPointInPolygon,
   randomPointOnStreets,

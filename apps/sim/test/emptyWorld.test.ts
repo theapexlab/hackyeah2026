@@ -79,6 +79,7 @@ describe('zero-node world', () => {
       backhaul: 0,
       unregistered: 0,
       walking: 0,
+      cycling: 0,
       driving: 0,
     });
     expect(nodeIndex(snapshot.nodes).size).toBe(0);

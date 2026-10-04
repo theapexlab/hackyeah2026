@@ -37,7 +37,7 @@ export interface Waypoint {
 }
 
 /** How a traveller gets around. */
-export type TravelMode = 'foot' | 'car';
+export type TravelMode = 'foot' | 'bike' | 'car';
 
 /**
  * Where a traveller is in its cycle: moving (on a trip, or pausing in a park on the way),
@@ -50,8 +50,8 @@ export interface WalkState {
   /** Current mode while moving; the last one used while lingering or ready. */
   mode: TravelMode;
   phase: TripPhase;
-  /** Pace multiplier for this trip (walker step, or car step). */
-  speedFactor: number;
+  /** Speed of this trip in metres per second (drawn from MobilityConfig.speedKmh). */
+  speed: number;
   /** Street-graph node the next trip starts from. */
   anchor: number;
   path: Waypoint[];
@@ -110,7 +110,7 @@ export interface NodeView {
   readonly credentialKind: CredentialKind;
   readonly backhaul: Backhaul;
   readonly batteryBacked: boolean;
-  /** On the move right now (walking or driving); null when standing still. */
+  /** On the move right now (walking, cycling or driving); null when standing still. */
   readonly travel: TravelMode | null;
   readonly poweredOverride: boolean | null;
   readonly alive: boolean;

@@ -25,15 +25,21 @@ The app opens playing on the default world (seed 42 = Kraków · Kazimierz, 2200
 another world from the left panel. Reset regenerates the same seed, so a repeated event script gives an identical log (the
 engine is deterministic). A lime badge counts the requests a phone currently sees as open.
 
-Street traffic: at every moment 10% of the phones walk (walking icon, cyan dot) and 10% drive
-(car icon, pink dot), cars 20× as fast. A traveller stops where it arrives, lingers, then sets
-off again in whichever mode is short of people, or stays put for good while a still phone
-sets off instead; the HUD counts who is walking and driving. Walkers may cross a park on the
-way, cars stay on the streets.
+Time is real: a tick stands for 200 ms of simulated time (the Tick length slider) and takes
+just as long at 1×; 10× and 60× run 50 and 300 ticks a second (at 60× several ticks per
+frame). Protocol timings such as TTLs stay in ticks.
+
+Street traffic at real speeds: at every moment 10% of the phones walk at 2–3 km/h (walking
+icon, cyan dot), 5% cycle at 10 km/h (bike icon, indigo dot) and 10% drive at 50 km/h (car
+icon, pink dot). A traveller stops where it arrives, lingers 30 s to 5 min, then sets off
+again in whichever mode is short of people, or stays put for good while a still phone sets
+off instead; the HUD counts who is walking, cycling and driving. Walkers may cross a park on
+the way, bikes and cars stay on the streets.
 
 Seed 42 ignores the Width / Height sliders (they lock and show the map's size); every other
 seed draws a procedural street grid of the configured size. Nothing is ever generated or
-dropped in the Vistula. Phones and gateways start on streets; routers stand anywhere except the
+dropped in the Vistula. Phones start on streets; gateways on the most central street junctions (the first on the
+central hub, the others at least 400 m apart); routers stand anywhere except the
 river and the parks. The engine moves a phone or gateway dropped in the water onto the nearest
 street, and a router dropped in the water or a park to the nearest allowed spot.
 
@@ -70,7 +76,7 @@ deselects. While the shortcuts sheet (`?` button) is open only Esc acts.
 | `f`           | Forged request from an unregistered phone (every neighbour rejects it)|
 | `space`       | Play / pause                                                          |
 | `.`           | Step one tick                                                         |
-| `+` `-`       | Faster / slower (0.5× 1× 2× 4×)                                       |
+| `+` `-`       | Faster / slower (1× real time, 10×, 60×)                              |
 | `v`           | Toggle radio range circles                                            |
 | `t`           | Toggle topology gossip packets (hidden by default)                    |
 | `h`           | Fit the whole area in view                                            |

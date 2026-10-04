@@ -5,7 +5,7 @@ import type {
   Command,
   CredentialKind,
   DeclaredLevel,
-  EngineConfig,
+  EngineConfigPatch,
   MessageClass,
   MessageId,
   NodeId,
@@ -54,12 +54,17 @@ export function moveNode(nodeId: NodeId, x: number, y: number): void {
   dispatch({ type: 'MoveNode', nodeId, x, y });
 }
 
-export function setMobility(enabled: boolean, stepMetres?: number): void {
-  dispatch({ type: 'SetMobility', enabled, stepMetres });
+export function setMobility(enabled: boolean): void {
+  dispatch({ type: 'SetMobility', enabled });
 }
 
-export function setEngineConfig(patch: Partial<EngineConfig>): void {
+export function setEngineConfig(patch: EngineConfigPatch): void {
   dispatch({ type: 'SetConfig', patch });
+}
+
+/** A tick stands for this much simulated time (movement speeds follow it). */
+export function setTickSeconds(tickSeconds: number): void {
+  dispatch({ type: 'SetConfig', patch: { tickSeconds } });
 }
 
 export function setRange(opts: { kind?: NodeKind; nodeId?: NodeId; range: number }): void {

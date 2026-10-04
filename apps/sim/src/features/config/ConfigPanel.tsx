@@ -19,13 +19,17 @@ import {
 import { IconDice5 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { isKrakowSeed, terrainTitle } from '../../lib/terrain';
-import { setMobility } from '../../sim/commands';
+import { setMobility, setTickSeconds } from '../../sim/commands';
 import { createWorld, resetWorld, setTickInterval } from '../../sim/store';
 import { type ConfigDraft, draftToWorldConfig, useUiStore } from '../../ui/store';
 
 const MAX_NODES = 10_000;
-const WALK_PERCENT = Math.round(DEFAULT_ENGINE_CONFIG.mobility.walkerFraction * 100);
-const DRIVE_PERCENT = Math.round(DEFAULT_ENGINE_CONFIG.mobility.driverFraction * 100);
+const { shares, speedKmh } = DEFAULT_ENGINE_CONFIG.mobility;
+const pct = (share: number): string => `${Math.round(share * 100)}%`;
+const kmh = ([min, max]: readonly [number, number]): string =>
+  min === max ? `${min}` : `${min}-${max}`;
+const TRAFFIC_LABEL = `Phones on the move: ${pct(shares.foot)} walk, ${pct(shares.bike)} cycle, ${pct(shares.car)} drive`;
+const TRAFFIC_SPEEDS = `${kmh(speedKmh.foot)} / ${kmh(speedKmh.bike)} / ${kmh(speedKmh.car)} km/h; at 1× a tick of simulated time takes as long on the clock.`;
 
 function toInt(value: number | string, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : fallback;
@@ -238,17 +242,21 @@ export function ConfigPanel() {
 
       <Section title="Time">
         <LabelledSlider
-          label="Tick length"
+          label="Tick length (simulated time)"
           value={draft.tickMs}
           min={50}
           max={1000}
           step={50}
           format={(v) => `${v} ms`}
           onChange={(v) => patch({ tickMs: v })}
-          onChangeEnd={(v) => setTickInterval(v)}
+          onChangeEnd={(v) => {
+            setTickInterval(v);
+            setTickSeconds(v / 1000);
+          }}
         />
         <Switch
-          label={`Phones on the move (${WALK_PERCENT}% walk, ${DRIVE_PERCENT}% drive)`}
+          label={TRAFFIC_LABEL}
+          description={TRAFFIC_SPEEDS}
           size="sm"
           checked={draft.mobility}
           onChange={(event) => {

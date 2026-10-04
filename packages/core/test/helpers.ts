@@ -114,7 +114,7 @@ export function makeConfig(partial: Partial<EngineConfig> = {}): EngineConfig {
 // Engine builders (stage 2). Worlds are explicit node lists so every test states its
 // geometry; ranges are explicit per test (defaults are mobile 100, router 200, gateway 220).
 
-import type { WorldConfig } from '../src/domain/config';
+import type { EngineConfigPatch, WorldConfig } from '../src/domain/config';
 import type { SimEvent, SimEventType } from '../src/domain/events';
 import type { Backhaul, CredentialKind } from '../src/domain/node';
 import type { SimEngine } from '../src/engine/engine';
@@ -160,7 +160,7 @@ export function gateway(id: string, x: number, y: number, backhaul: Backhaul = '
 /** An engine over explicit nodes; the area defaults to 1000 x 700 so clamping never bites. */
 export function engineFrom(
   nodes: Node[],
-  cfg: Partial<EngineConfig> = {},
+  cfg: EngineConfigPatch = {},
   world: Partial<WorldConfig> = {},
 ): SimEngine {
   return createEngineFromNodes(nodes, cfg, { width: 1000, height: 700, ...world });

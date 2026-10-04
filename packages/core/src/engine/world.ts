@@ -3,7 +3,7 @@ import type { NodeId } from '../domain/ids';
 import { formatNodeId } from '../domain/ids';
 import type { Backhaul, CredentialKind, Node, NodeKind } from '../domain/node';
 import type { Prng } from '../prng';
-import { nearestPointOnGraph, randomPointOnStreets } from '../terrain/graph';
+import { centralJunctions, nearestPointOnGraph, randomPointOnStreets } from '../terrain/graph';
 import { resolveTerrain } from '../terrain/index';
 import { nearestRouterSpot } from '../terrain/placement';
 import type { Pt, Terrain } from '../terrain/types';
@@ -80,9 +80,40 @@ function snapToStreet(terrain: Terrain, x: number, y: number, width: number, hei
   return q === null ? p : { x: q.x, y: q.y };
 }
 
+/** Gateways stand at least this far apart while the hubs allow it. */
+export const GATEWAY_SPACING_M = 400;
+
 /**
- * Gateway positions as fractions of the area, taken in order: the four corners
- * (inset 12%), then the centre, then the edge midpoints. Gateways beyond the list
+ * Gateway spots on a map with streets: the most central hub first (centralJunctions), then
+ * the next most central hubs at least GATEWAY_SPACING_M from every earlier gateway; when
+ * the hubs run out of spacing, the most central unused ones; beyond that the list repeats.
+ * Null on a map without streets. No randomness.
+ */
+export function gatewaySpots(terrain: Terrain, count: number): Pt[] | null {
+  const hubs = centralJunctions(terrain.graph);
+  if (hubs.length === 0 || count <= 0) return hubs.length === 0 ? null : [];
+  const nodes = terrain.graph.nodes;
+  const chosen: number[] = [];
+  for (const h of hubs) {
+    if (chosen.length >= count) break;
+    const p = nodes[h]!;
+    const clear = chosen.every((c) => {
+      const q = nodes[c]!;
+      return Math.hypot(p.x - q.x, p.y - q.y) >= GATEWAY_SPACING_M;
+    });
+    if (clear) chosen.push(h);
+  }
+  for (const h of hubs) {
+    if (chosen.length >= count) break;
+    if (!chosen.includes(h)) chosen.push(h);
+  }
+  for (let i = 0; chosen.length < count; i++) chosen.push(hubs[i % hubs.length]!);
+  return chosen.map((h) => ({ x: nodes[h]!.x, y: nodes[h]!.y }));
+}
+
+/**
+ * Fallback gateway positions on a map without streets, as fractions of the area: the four
+ * corners (inset 12%), then the centre, then the edge midpoints; gateways beyond the list
  * are placed uniformly at random.
  */
 const GATEWAY_ANCHORS: readonly (readonly [number, number])[] = [
@@ -109,8 +140,9 @@ const GATEWAY_ANCHORS: readonly (readonly [number, number])[] = [
  *     the water or a park moves to the nearest allowed spot (nearestRouterSpot, no draws).
  *  2. mobiles, in index order: a point on the land streets, uniform by street length
  *     (edge then position: 2 draws each; uniform over the area when there are no streets).
- *  3. gateways beyond the anchor list, in index order: x then y (2 draws each).
- *     Anchored gateways draw nothing. Every gateway snaps to the nearest land street.
+ *  3. gateways: on the street hubs, most central first and spread GATEWAY_SPACING_M apart
+ *     (gatewaySpots, no draws). Only on a map without streets: the anchor list, and
+ *     x then y uniformly for gateways beyond it (2 draws each).
  *  4. one shuffle of the mobile indices; the first round(unregisteredFraction * n)
  *     get credential 'none', the rest 'citizen'.
  *  5. one shuffle of the router indices; the first round(batteryBackedRouterFraction * n)
@@ -187,11 +219,15 @@ export function generateWorld(
 
   // 3. gateways
   const gateways: Node[] = [];
+  const spots = gatewaySpots(terrain, nGateways);
   for (let i = 0; i < nGateways; i++) {
-    const anchor = GATEWAY_ANCHORS[i];
-    const x = anchor === undefined ? prng.float(0, width) : anchor[0] * width;
-    const y = anchor === undefined ? prng.float(0, height) : anchor[1] * height;
-    const at = snapToStreet(terrain, x, y, width, height);
+    let at = spots?.[i];
+    if (at === undefined) {
+      const anchor = GATEWAY_ANCHORS[i];
+      const x = anchor === undefined ? prng.float(0, width) : anchor[0] * width;
+      const y = anchor === undefined ? prng.float(0, height) : anchor[1] * height;
+      at = snapToStreet(terrain, x, y, width, height);
+    }
     gateways.push(
       createNode({
         id: formatNodeId('gateway', i + 1),

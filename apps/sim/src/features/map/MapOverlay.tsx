@@ -30,6 +30,7 @@ import {
   resolvePalette,
   TRAVEL_COLOR,
   TRAVEL_LABEL,
+  TRAVEL_MODES,
 } from '../../theme/tokens';
 import { useUiStore } from '../../ui/store';
 import { AuthorityBadge } from './AuthorityBadge';
@@ -63,7 +64,7 @@ const Legend = memo(function Legend() {
               </Group>
             );
           })}
-          {(['foot', 'car'] as const).map((mode) => {
+          {TRAVEL_MODES.map((mode) => {
             const Icon = TRAVEL_ICON[mode];
             return (
               <Group key={mode} gap={4} wrap="nowrap">
@@ -137,6 +138,7 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
     gateways,
     alive,
     walking,
+    cycling,
     driving,
   } = useSimStore(
     useShallow((s) => {
@@ -152,6 +154,7 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
         gateways: c.gateways,
         alive: c.alive,
         walking: c.walking,
+        cycling: c.cycling,
         driving: c.driving,
       };
     }),
@@ -165,7 +168,9 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
           <Text size="xs" ff="monospace" c="dimmed">
             {title === null ? '' : `${title} · `}seed {formatSeed(seed)} · {total} nodes ({mobiles}/
             {routers}/{gateways}) · {alive} alive · {edges} edges · {components} components
-            {walking + driving > 0 ? ` · ${walking} walking · ${driving} driving` : ''}
+            {walking + cycling + driving > 0
+              ? ` · ${walking} walking · ${cycling} cycling · ${driving} driving`
+              : ''}
           </Text>
         </Paper>
       </Box>

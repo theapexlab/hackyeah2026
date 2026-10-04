@@ -67,20 +67,23 @@ pnpm build      # static bundle in apps/sim/dist (works offline, relative base)
 
 ### Driving the demo
 
-The demo opens already playing. Configure the world in the left panel (phones, routers,
+The demo opens already playing, in real time: a tick is 200 ms of simulated time and takes
+200 ms at 1×; 10× and 60× compress ten minutes into one or six. Configure the world in the left panel (phones, routers,
 gateways, radio ranges, seed, phones on the move) and press **Generate**. **Reset** rebuilds the same seed, so a rehearsed run
 replays exactly.
 
 The default seed **42 loads Kraków**: about 2.2 × 1.3 km around the Vistula bend (Kazimierz,
 Stradom, Stare Podgórze, Dębniki, Grzegórzki, Zabłocie), traced from a street map into a street
-graph with parks and the river. Nothing stands in the Vistula: phones and gateways
-start on streets, routers anywhere outside the river and the parks (in the blocks between the
+graph with parks and the river. Nothing stands in the Vistula: phones start on streets,
+gateways on the most central street junctions (the first on the network's central hub, the
+others at least 400 m apart), routers anywhere outside the river and the parks (in the blocks between the
 streets). A phone or gateway moved into the water lands on the nearest street, a router moved
-into the water or a park on the nearest allowed spot, and only the bridges cross the river. With **Phones on the move** on (the default), a tenth of the phones walk and a tenth drive
-at every moment, cars 20 times as fast as walkers. Each traveller follows the shortest street
-route to a destination (walks 120–600 m, sometimes into a park and back; drives 400–1500 m),
-stops and lingers there, then sets off again on foot or by car, whichever is short of people,
-or stays put for good while someone else sets off. Everyone else stays still. Travellers carry
+into the water or a park on the nearest allowed spot, and only the bridges cross the river. With **Phones on the move** on (the default), at every moment 10% of the phones walk
+(2–3 km/h), 5% cycle (10 km/h) and 10% drive (50 km/h). Each traveller follows the shortest
+street route to a destination (walks 120–600 m, sometimes into a park and back; rides
+300–1500 m; drives 500–2000 m), stops and lingers there for 30 s to 5 min, then sets off again
+on foot, by bike or by car, whichever is short of people, or stays put for good while someone
+else sets off. Everyone else stays still. Travellers carry
 stored messages between islands. Any other seed draws a procedural district of the configured size. Click any device, or the Authority badge, to inspect its inbox, store-and-forward
 buffer and log, and to act from it (send a request, accept one, check in, declare a level,
 broadcast an alert, cut power). A lime badge on a phone counts the requests it currently sees

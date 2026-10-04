@@ -4,12 +4,14 @@
  * street traffic being on from the first world, and the pure path builders.
  */
 import {
+  DEFAULT_ENGINE_CONFIG,
   DEFAULT_WORLD_CONFIG,
   KRAKOW_HEIGHT,
   KRAKOW_SEED,
   KRAKOW_TERRAIN_ID,
   KRAKOW_WIDTH,
   type Pt,
+  travelTargets,
 } from '@pomoc/core';
 import { describe, expect, it } from 'vitest';
 import {
@@ -45,17 +47,21 @@ describe('Kraków map in the app', () => {
     expect(terrainTitle('procedural-7-1000x700')).toBeNull();
   });
 
-  it('starts on the Kraków map with a tenth walking and a tenth driving', () => {
+  it('starts on the Kraków map with the default shares on the move, 200 ms ticks', () => {
     expect(DEFAULT_CONFIG_DRAFT.mobility).toBe(true);
     const { snapshot } = useSimStore.getState();
     expect(snapshot.terrain.id).toBe(KRAKOW_TERRAIN_ID);
     expect(snapshot.world.mobility).toBe(true);
-    const tenth = Math.round(0.1 * DEFAULT_WORLD_CONFIG.mobiles);
+    const { engine, tickIntervalMs } = useSimStore.getState();
+    expect(tickIntervalMs).toBe(200);
+    expect(engine.config.tickSeconds).toBe(0.2);
+    const t = travelTargets(DEFAULT_WORLD_CONFIG.mobiles, DEFAULT_ENGINE_CONFIG.mobility.shares);
+    const expected = [t.foot, t.bike, t.car];
     const counts = countNodes(snapshot.nodes);
-    expect([counts.walking, counts.driving]).toEqual([tenth, tenth]);
-    useSimStore.getState().engine.step(20);
+    expect([counts.walking, counts.cycling, counts.driving]).toEqual(expected);
+    engine.step(20);
     const later = countNodes(useSimStore.getState().snapshot.nodes);
-    expect([later.walking, later.driving]).toEqual([tenth, tenth]);
+    expect([later.walking, later.cycling, later.driving]).toEqual(expected);
   });
 
   it('seed 42 ignores the configured size and keeps one terrain object per world', () => {

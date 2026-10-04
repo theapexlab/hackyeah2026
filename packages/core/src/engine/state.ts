@@ -118,7 +118,7 @@ function terrainFor(world: WorldConfig, nodes?: readonly Node[]): Terrain {
  * Engine config, command log, tick and seq counters survive; everything else is fresh.
  * PRNG draw order: generateWorld's draws, then one shuffle of the mobile ids for the
  * participation order (drawn for explicit node lists too), then, for generated worlds
- * only, assignTravellers' draws (the first walkers and drivers, their pace and start).
+ * only, assignTravellers' draws (the first travellers, their speed and start).
  */
 function populateWorld(state: EngineState, world: WorldConfig, nodes?: readonly Node[]): void {
   const terrain = terrainFor(world, nodes);
@@ -127,7 +127,7 @@ function populateWorld(state: EngineState, world: WorldConfig, nodes?: readonly 
   const list = nodes === undefined ? generateWorld(effective, prng, terrain) : sortNodes(nodes);
   const mobileIds = list.filter((n) => n.kind === 'mobile').map((n) => n.id);
   const order = prng.shuffle(mobileIds);
-  if (nodes === undefined) assignTravellers(list, terrain, prng, state.config.mobility);
+  if (nodes === undefined) assignTravellers(list, terrain, prng, state.config);
 
   state.world = effective;
   state.terrain = terrain;
