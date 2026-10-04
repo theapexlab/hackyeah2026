@@ -131,8 +131,8 @@ export function MapOverlay({ zoom }: MapOverlayProps) {
       <Box style={{ position: 'absolute', top: 12, left: 12 }}>
         <Paper shadow="sm" radius="md" px="sm" py={6} withBorder>
           <Text size="xs" ff="monospace" c="dimmed">
-            {title === null ? '' : `${title} · `}seed {formatSeed(seed)} · {total} nodes ({mobiles}/{routers}/{gateways}) · {alive} alive
-            · {edges} edges · {components} components
+            {title === null ? '' : `${title} · `}seed {formatSeed(seed)} · {total} nodes ({mobiles}/
+            {routers}/{gateways}) · {alive} alive · {edges} edges · {components} components
           </Text>
         </Paper>
       </Box>

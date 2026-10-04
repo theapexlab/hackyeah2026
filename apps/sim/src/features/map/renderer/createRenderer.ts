@@ -21,6 +21,7 @@ import {
   drawTrail,
   drawVignette,
 } from './drawFx';
+import { buildTerrainPaths, drawTerrain, type TerrainPaths } from './drawTerrain';
 import { fxBus } from './fxBus';
 import { chainEdges, collectTrail, TRAIL_TICKS, type Trail, type TrailEdge } from './highlight';
 import {
@@ -37,7 +38,6 @@ import {
   ripplesForTouches,
 } from './particles';
 import { createSprites, type SpriteSet } from './sprites';
-import { buildTerrainPaths, drawTerrain, type TerrainPaths } from './drawTerrain';
 
 export interface RendererOptions {
   readonly engine: SimEngine;

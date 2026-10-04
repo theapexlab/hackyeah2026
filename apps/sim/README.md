@@ -40,10 +40,11 @@ Dev-only:
 
 Neither is part of the production bundle.
 
-The Kraków data (`packages/core/src/terrain/krakowData.ts`) is generated, not hand-edited:
-the river and parks come from colour masks of the screenshot, the streets from a vectorised
-road mask plus hand-traced major roads and bridges, with label gaps healed and stray blocks
-joined so the street graph is one connected network.
+The Kraków data (`packages/core/src/terrain/krakowData.ts`) was traced once from that
+screenshot: the river and parks from colour masks, the streets from a vectorised road mask
+plus hand-traced major roads and bridges, with label gaps healed and stray blocks joined so the
+street graph is one connected network. Edit it by hand (screenshot pixels); the core terrain
+tests check connectivity, bridges and park gates.
 
 ## Hotkeys
 
