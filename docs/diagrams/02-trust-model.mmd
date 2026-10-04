@@ -6,15 +6,13 @@ sequenceDiagram
   participant R as Home router (relay only)
   participant N as Neighbour phone
   Note over P,A: Registration, once, online (internet or in-person), peace mode
-  P->>P: create non-extractable enrollment key in secure element
+  P->>P: secure element generates non-exportable key pair
   P->>W: request verified attributes (name, address)
   W-->>P: signed attributes
-  P->>A: enrollment public key + signed attributes
-  A->>A: HSM generates key pair, signs citizen certificate (pseudonym, 30 days, classes)
-  A-->>P: private key wrapped to enrollment key + citizen certificate
-  A->>A: destroy private key copy
-  P->>P: import key into secure element
-  Note over P,A: Renewal, no internet: request forwarded by mesh to a gateway, receipt returned along path
+  P->>A: public key + proof of possession + hardware attestation + signed attributes
+  A->>A: verify identity, attestation, proof of possession; HSM signs citizen certificate (pseudonym, 30 days, classes)
+  A-->>P: citizen certificate (no private key ever leaves the phone)
+  Note over P,A: Renewal, no internet: new key on the phone, request signed with the current key forwarded by mesh to a gateway, certificate returned along path
   Note over P,N: Any later time, any mode, no network needed
   P->>P: sign request with private key
   P->>R: request + certificate (BLE / Wi-Fi)

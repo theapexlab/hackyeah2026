@@ -30,7 +30,7 @@ ordinary Tuesday and the day the network goes dark.
 | Payments        | Optional micro-payments or credits                     | Disabled                                                    |
 | Reach           | Hop-limited (local by design)                          | Hop limit raised, store-and-forward enabled                 |
 | Transport       | Internet when available, mesh otherwise                | Router mesh, then phone-only degraded mesh                  |
-| Trigger         | Default                                                | Local backhaul loss, or signed national declaration         |
+| Trigger         | Default                                                | Local backhaul loss, or signed local authority declaration         |
 
 ## Actors
 
@@ -45,8 +45,8 @@ ordinary Tuesday and the day the network goes dark.
 Nothing of the production system is built at the hackathon. The deliverable is an
 **interactive simulation** that shows the protocol and both operating modes on a city-scale
 graph (routers as static nodes, phones as mobile nodes), including mode switching, controlled
-flooding with hop limits, TTL and de-duplication, store-and-forward via moving people, and
-coverage analysis for decision makers. Cryptography is standard and not simulated; the
+flooding with hop limits, TTL and de-duplication, and store-and-forward via moving people. Coverage planning for the city is part of the
+vision, not of the simulation. Cryptography is standard and not simulated; the
 simulation is about mesh behaviour.
 
 ## Running the simulation

@@ -30,6 +30,11 @@ backbone dies with street power, ours continues on phones with store-and-forward
 - **Lifeline: Emergency Ad Hoc Network** (arXiv 2203.16857, 2022). Battery-powered routers
   that boot into ad hoc mode when grid power fails, proposed for hospitals, schools and
   public buildings. We take the battery-backed relay idea for the coverage planning view.
+- **Freifunk** (Germany, since 2004). Community networks of thousands of volunteer-run home
+  routers on OpenWrt, meshing over 802.11s / ad hoc Wi-Fi with batman-adv across whole
+  cities. Proof that household routers on mac80211 firmware mesh with every neighbour in
+  range at city scale. Difference: volunteer-flashed hardware, no identity, no emergency
+  mode; Pomóc needs ISPs to ship the same capability on their CPE.
 
 ## Phone-to-phone mesh
 

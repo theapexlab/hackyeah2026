@@ -38,25 +38,36 @@ between a cardiac arrest and the AED on the wall
 
 ### Emergency mode
 - Signed official alerts, "I am OK" check-ins, life-critical requests
-- No backbone needed: phones and home routers relay hop by hop
+- No operator network needed: home routers mesh over Wi-Fi, phones relay over Bluetooth LE
 - Payments off, priorities on
 
-> Runs on what the city already has: phones and ISP routers.
+> Runs on what the city already has: phones and ISP routers. Routers are the Wi-Fi mesh backbone, phones the Bluetooth edge.
 
 ---
-<!-- layout: diagram -->
-## How the pieces fit together
+<!-- kicker: Scenario -->
+## The AED, in 90 seconds
 
-![System overview](overview.png)
+1. Ola's phone sends a signed **LIFE_CRITICAL** request. It floods the mesh, top priority.
+2. The mesh knows a registered AED 40 m from Marek. He is the nearest capable responder and accepts.
+3. Everyone else sees the request is taken. The mesh guides Marek to the AED, then to Ola.
+4. Marek runs it over. One person moves, the messages did the rest. Staff would take six minutes.
+
+> Messages travel hop by hop. The object travels with one person.
 
 ---
-<!-- kicker: Trust -->
-## Verified people, verifiable offline
+<!-- kicker: Emergency mode -->
+## Three levels, one signed declaration
 
-- Register once through the national identity wallet (mObywatel / EUDI). The Authority issues a key and a **citizen certificate**, delivered wrapped into the phone's secure element.
-- Every message is signed. Any node verifies it with the Authority root key already in the app. **No network needed.**
-- Routers hold **relay certificates**: they carry, they can never ask. A cryptographic rule, not a policy.
-- Pseudonymous on the wire. 30-day keys, re-issued silently, through the mesh when the internet is gone.
+| | L1 Disruption | L2 Disaster | L3 Security |
+|---|---|---|---|
+| Cause | cell outage, cable cut | flood, storm, blackout | terror, war, hybrid attack |
+| Entered by | automatic or declaration | declaration only | declaration only |
+| Router portal | read + check-in | read + check-in + request | **read only** |
+| Citizen requests | life-critical, safety, "I am OK" | life-critical, safety, "I am OK" | + sealed casualty report to the authorities |
+| Citizen info | on | on | **off** (rumour control) |
+| Reach | 10 hops | 15 hops | 6 hops, phones go quiet |
+
+Jamming the cells can force L1 at most. Everything above it needs a signature.
 
 ---
 <!-- kicker: Peace mode -->
@@ -75,30 +86,19 @@ Cordless drill, Sunday afternoon
 Matched by Marek, 2 hops away, in 4 minutes.
 
 ---
-<!-- kicker: Emergency mode -->
-## Three levels, one signed declaration
+<!-- layout: diagram -->
+## How the pieces fit together
 
-| | L1 Disruption | L2 Disaster | L3 Security |
-|---|---|---|---|
-| Cause | cell outage, cable cut | flood, storm, blackout | terror, war, hybrid attack |
-| Entered by | automatic or declaration | declaration only | declaration only |
-| Router portal | read + check-in | read + check-in + request | **read only** |
-| Citizen requests | life-critical, safety, "I am OK" | life-critical, safety, "I am OK" | + sealed casualty report to the authorities |
-| Citizen info | on | on | **off** (rumour control) |
-| Reach | 10 hops | 15 hops | 6 hops, phones go quiet |
-
-Jamming the cells can force L1 at most. Everything above it needs a signature.
+![System overview](overview.png)
 
 ---
-<!-- kicker: Scenario -->
-## The AED, in 90 seconds
+<!-- kicker: Trust -->
+## Verified people, verifiable offline
 
-1. Ola's phone sends a signed **LIFE_CRITICAL** request. It floods the mesh, top priority.
-2. The mesh knows a registered AED 40 m from Marek. He is the nearest capable responder and accepts.
-3. Everyone else sees the request is taken. The mesh guides Marek to the AED, then to Ola.
-4. Marek runs it over. One person moves, the messages did the rest. Staff would take six minutes.
-
-> Messages travel hop by hop. The object travels with one person.
+- Register once through the national identity wallet (mObywatel / EUDI). The key is born in the phone's secure chip and never leaves it; the Authority verifies the person and the device, then signs a **citizen certificate**.
+- Every message is signed. Any node verifies it with the Authority root key already in the app. **No network needed.**
+- Routers hold **relay certificates**: they carry, they can never ask. A cryptographic rule, not a policy.
+- Pseudonymous on the wire. 30-day keys, re-issued silently, through the mesh when the internet is gone.
 
 ---
 <!-- kicker: What we built at HackYeah -->
@@ -111,16 +111,16 @@ Kraków district, static router layer plus mobile phone layer. Deterministic, pl
 - 2 flooding: hop limit, TTL, dedup
 - 3 cells down → L1, router backbone
 - 4 power down → phone-only, store-and-forward
-- 5 L2 vs L3 side by side
-- 6 coverage planning
+- 5 L2 west, L3 east: regional declarations
+- 6 forged request rejected
 
-Live metrics: reach, delivery per class, hops, latency. Sliders for participation and radio range show the **percolation threshold**: how few nodes are enough.
+Live metrics: reach, delivery per class, hops, latency. Set device counts and radio range and watch the **percolation threshold**: how few nodes are enough.
 
 Cryptography is standard and not simulated; the simulation is about mesh behaviour. Nothing else is built. Pomóc is a vision; the simulation is the argument.
 
 ---
 <!-- kicker: Why it is believable -->
-<!-- footer: Pomóc · concept, research and docs made with AI assistance (Claude Code); sources in the repo -->
+<!-- footer: Pomóc · concept, research and docs made with AI assistance (Claude Code; title illustration generated with Gemini); sources in the repo -->
 ## Every piece has been tried. Nobody has combined them.
 
 - **00000JAPAN** and **Comcast** already flip existing Wi-Fi open in disasters

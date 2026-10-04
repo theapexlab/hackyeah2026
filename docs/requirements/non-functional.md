@@ -10,7 +10,7 @@ the simulation is about mesh behaviour.
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --- |
 | NFR-SEC-01 | All protocol messages are signed. Unsigned or unverifiable messages are dropped at the first hop and never forwarded.                                                                                                            | M        | –   |
 | NFR-SEC-02 | Verification requires only material already on the device (Authority root keys, the message's own certificate chain). No verification step depends on network access. Obtaining a new credential is the only operation that needs a path to the issuer. | M | – |
-| NFR-SEC-03 | Issued private keys are stored in hardware-backed storage where the platform provides it (Android Keystore / StrongBox, iOS Secure Enclave) and are not exportable after import. Authority-side key generation and wrapping happen only inside HSMs, with m-of-n operator control, and the Authority copy is destroyed after delivery confirmation. | M | – |
+| NFR-SEC-03 | Private keys are generated in, and never leave, hardware-backed storage where the platform provides it (Android Keystore / StrongBox, iOS Secure Enclave). The Authority never holds a citizen private key; certificate signing happens only inside HSMs, with m-of-n operator control. | M | – |
 | NFR-SEC-04 | Separate Authority keys for certificate issuance, mode declarations and official alerts, so compromise of one does not grant the others. Root keys are kept offline.                                                             | M        | P   |
 | NFR-SEC-05 | Replay protection: every message carries a unique id, a timestamp and the signer's sequence number; nodes reject ids seen before, and the first node that admits a message into the mesh rejects timestamps more than 5 minutes from its own clock. Once admitted, de-duplication and TTL govern, so a message carried by a data mule is not dropped for arriving late. | M        | D   |
 | NFR-SEC-06 | Flooding resistance: every node keeps an in-memory token bucket per sender, keyed by the sender's certificate pseudonym, and drops or deprioritises that sender's messages when the bucket is exhausted; buckets are local to the node, share no state and reset on restart. Relay certificates have stricter limits than citizen certificates; LIFE_CRITICAL has the lowest allowed rate to make it expensive to abuse. | M | D |
@@ -21,7 +21,7 @@ the simulation is about mesh behaviour.
 | NFR-SEC-11 | Mesh traffic originating from captive portals is bounded by design: at most one PORTAL_SUMMARY per router per minute, regardless of client count. An attacker at a portal can distort one router's counters, not load the mesh. | M | D |
 | NFR-SEC-12 | At L3 Security no unauthenticated input enters the mesh and no citizen-originated free-form information propagates in a form peers can read; only Authority-signed information and sealed CASUALTY_REPORTs (encrypted to the Authority, forwarded opaque by relays) do. | M | D |
 | NFR-SEC-13 | At L3 Security phones do not emit topology gossip, so the mesh does not reveal the distribution of people; only routers at known locations gossip. | M | D |
-| NFR-SEC-14 | Private keys are delivered only wrapped to the target device enrollment key; gateways and mesh hops never see them in clear. Authority key escrow, where required by law, uses a separate k-of-n split-knowledge vault. | M | – |
+| NFR-SEC-14 | Only public keys, certificate requests and certificates travel to the Authority; gateways, mesh hops and the Authority never see a private key. Registration accepts only keys with a valid hardware attestation. | M | – |
 
 ## 2. Privacy
 
@@ -30,7 +30,7 @@ the simulation is about mesh behaviour.
 | NFR-PRV-01 | Peers see pseudonyms, categories and hop distance, never legal names, exact addresses or GPS coordinates, unless the citizen chooses to share them for a specific transaction. | M        | D   |
 | NFR-PRV-02 | Location is expressed as hop distance by default and as a coarse geohash (street segment) only when the citizen attaches a radius.                                             | M        | D   |
 | NFR-PRV-03 | Topology gossip from phones is rate-limited and coarsened so that movement patterns of individuals cannot be reconstructed from the mesh.                                      | S        | –   |
-| NFR-PRV-04 | The Authority stores the pseudonym-to-identity mapping separately from transaction data, under access logging and legal access rules published in advance. The same applies to any escrowed key material. | M | – |
+| NFR-PRV-04 | The Authority stores the pseudonym-to-identity mapping separately from transaction data, under access logging and legal access rules published in advance. | M | – |
 | NFR-PRV-05 | Peacetime transaction content is retained on Authority servers for no longer than needed for disputes (target 90 days); only aggregates are kept.                              | S        | –   |
 | NFR-PRV-06 | Emergency-mode check-ins and requests are retained for the duration of the declaration plus a defined review period, then deleted.                                             | S        | –   |
 | NFR-PRV-07 | Participation of unregistered devices as relays does not require them to disclose any identity; a random per-boot relay id is sufficient.                                      | M        | D   |
@@ -52,7 +52,7 @@ the simulation is about mesh behaviour.
 
 | ID          | Requirement                                                                                                                                                | Priority | Sim |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --- |
-| NFR-PERF-01 | Protocol messages fit in a single BLE extended advertisement or GATT write where possible (target 240 bytes for requests without free text, 1 KB with).    | M        | P   |
+| NFR-PERF-01 | Protocol messages fit in a single BLE extended advertisement (255 B) or GATT write where possible (target 240 bytes for requests without free text, 1 KB with). This requires a compact certificate profile (32 B public key, expiry, 64 B Authority signature), not X.509.    | M        | P   |
 | NFR-PERF-02 | A node forwards a received message within 500 ms of verification.                                                                                          | S        | P   |
 | NFR-PERF-03 | A phone node handles 50 neighbours and 20 messages per second without user-visible degradation.                                                            | S        | P   |
 | NFR-PERF-04 | A router node handles 200 neighbours and 200 messages per second.                                                                                          | S        | P   |
@@ -66,7 +66,7 @@ the simulation is about mesh behaviour.
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --- |
 | NFR-INT-01 | The message format, certificate profile and forwarding rules are a published open specification. Anyone may implement a compatible node.                          | M        | –   |
 | NFR-INT-02 | The router relay component and the phone protocol library are open source and reproducibly built.                                                                | M        | –   |
-| NFR-INT-03 | Transports are pluggable: BLE, Wi-Fi Aware, Wi-Fi Direct, 802.11s, LAN, internet, and future direct-to-device satellite behave identically to the protocol layer. | M        | D   |
+| NFR-INT-03 | Transports are pluggable: BLE, Wi-Fi Aware, 802.11s, LAN, internet, and future direct-to-device satellite behave identically to the protocol layer. | M        | D   |
 | NFR-INT-04 | Identity integrates with the national identity wallet and the EUDI wallet standard rather than running its own enrolment.                                         | M        | –   |
 | NFR-INT-05 | Official alerts use the Common Alerting Protocol (CAP) payload so existing alert origination tools (e.g. Alert RCB) can feed the mesh.                            | S        | –   |
 | NFR-INT-06 | Router integration targets the firmware bases ISPs actually ship (OpenWrt, prplOS, RDK-B) and the TR-369 data model for provisioning.                             | S        | –   |
@@ -99,7 +99,7 @@ the simulation is about mesh behaviour.
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --- |
 | NFR-OPS-01 | Router relay firmware updates go through the ISP's existing update pipeline and can be rolled back.                                                         | M        | –   |
 | NFR-OPS-02 | The Authority can run a scheduled nationwide drill: a declaration flagged as a drill that exercises mode switching without restricting peacetime functions. | S        | P   |
-| NFR-OPS-03 | Peacetime topology data gives operators a continuous coverage health indicator per district with alerting on degradation.                                   | S        | D   |
+| NFR-OPS-03 | Peacetime topology data gives operators a continuous coverage health indicator per district with alerting on degradation.                                   | S        | –   |
 | NFR-OPS-04 | All Authority actions are auditable.                                                                                                                        | M        | –   |
 
 ## 9. Simulation quality (hackathon deliverable)
