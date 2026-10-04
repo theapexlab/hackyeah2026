@@ -1,8 +1,8 @@
 # @pomoc/sim — the Pomóc mesh simulation
 
 An offline, frontend-only simulation of the Pomóc civic mesh: phones, ISP routers and
-satellite gateways form a proximity graph on an abstract district plane, messages flood hop
-by hop, and the network flips between Peace and the L1 / L2 / L3 emergency levels. All
+satellite gateways form a proximity graph on a district map (hand-traced Kraków for seed 42,
+procedural otherwise), messages flood hop by hop, and the network flips between Peace and the L1 / L2 / L3 emergency levels. All
 business rules live in `@pomoc/core`; this app only renders and dispatches.
 
 ## Running
@@ -20,13 +20,30 @@ pnpm --filter @pomoc/sim test   # sim tests only (pure modules: particles, store
 pnpm check                      # Biome lint + format (pnpm check:fix to auto-format)
 ```
 
-Generate a world from the left panel (defaults: 1000 × 700 m, 40 phones, 25 routers,
-2 satellite gateways, seed 42), press Space, then fire events. Reset regenerates the same seed,
-so a repeated event script gives an identical log (the engine is deterministic). A lime badge
-counts the requests a phone currently sees as open.
+Generate a world from the left panel (defaults: seed 42 = Kraków · Kazimierz, 2200 × 1300 m,
+200 phones, 120 routers, 4 satellite gateways, walking phones on), press Space, then fire
+events. Reset regenerates the same seed, so a repeated event script gives an identical log (the
+engine is deterministic). A lime badge counts the requests a phone currently sees as open; a
+cyan dot marks the walkers (10% of the phones) that follow the streets and visit parks.
 
-Dev-only: `pnpm dev` and open `/?fixture=1` to see a fabricated world without the engine
-(`src/dev/fixture.ts`); it is never part of the production bundle.
+Seed 42 ignores the Width / Height sliders (they lock and show the map's size); every other
+seed draws a procedural street grid of the configured size. Nothing is ever generated or
+dropped in the Vistula: the engine snaps a node moved into the water onto the nearest street.
+
+Dev-only:
+
+- `/?fixture=1` shows a fabricated world without the engine (`src/dev/fixture.ts`).
+- `/?ref=1` lays the map screenshot the Kraków streets were traced from under the nodes, at
+  45% opacity, to check the trace while panning and zooming (`src/dev/RefOverlay.tsx`). The
+  image is third-party imagery: it lives in `apps/sim/dev-ref/krakow-ref.webp`, which git
+  ignores and the build never copies; without it the overlay is just a missing image.
+
+Neither is part of the production bundle.
+
+The Kraków data (`packages/core/src/terrain/krakowData.ts`) is generated, not hand-edited:
+the river and parks come from colour masks of the screenshot, the streets from a vectorised
+road mask plus hand-traced major roads and bridges, with label gaps healed and stray blocks
+joined so the street graph is one connected network.
 
 ## Hotkeys
 
@@ -68,7 +85,9 @@ useZoom (d3-zoom) ─▶ transformRef ─▶ SVG <g transform> + canvas setTrans
 
 Three layers share one zoom transform on the map:
 
-1. **Canvas** (`features/map/renderer/`): procedural street grid, region tints, range circles,
+1. **Canvas** (`features/map/renderer/`): the basemap from `snapshot.terrain` (`drawTerrain.ts`:
+   river, parks, minor and major streets, district captions; `Path2D`s cached on the terrain
+   object, which core keeps for the life of a world), region tints, range circles,
    edges (cached `Path2D`), packet pulses with glow and tail, arrival ripples, injection
    ripples at gateways ("from the sky"), drop bursts, and the highlighted message trail. It
    subscribes to the engine directly, coalesces transits per edge and class (cap 300) and
@@ -77,8 +96,8 @@ Three layers share one zoom transform on the map:
    `lib/`; `theme/tokens.ts` is pure colours and labels (icons live in `theme/icons.ts`).
 2. **SVG** (`NodesLayer` / `NodeGlyph`): one memoised glyph per node with click, double-click
    (centre), hover and tooltip. Ring colour = node mode, green outer ring = backhaul, dashed =
-   unregistered, amber badge = store-and-forward buffer, lime badge = open requests, dim =
-   powered off.
+   unregistered, cyan dot = walker, amber badge = store-and-forward buffer, lime badge = open
+   requests, dim = powered off.
 3. **HTML overlay** (`MapOverlay`): legend, zoom buttons, Authority badge.
 
 State lives in two zustand stores. `sim/store.ts` holds the engine, its latest immutable
@@ -95,5 +114,5 @@ credential rights and accept eligibility are read from `@pomoc/core` exports
 re-implemented here; the engine validates every command again on dispatch.
 
 Tests cover only the pure modules (`test/`): particles, highlight trail, event cursor,
-regions, geometry, event text, and the store against the real engine (Generate, Reset
-determinism, zero-node worlds). There are no component tests by design.
+regions, geometry, event text, terrain helpers and path builders, and the store against the
+real engine (Generate, Reset determinism, zero-node worlds, the Kraków seed). There are no component tests by design.
